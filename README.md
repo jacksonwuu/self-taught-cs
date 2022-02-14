@@ -1,5 +1,7 @@
 # Self-taught Computer Science
 
+![](https://img.shields.io/badge/Subscribe-Telegram%20Channel-blue) ![](https://img.shields.io/twitter/follow/jacksonwuuu?style=social)
+
 Documenting my self-learning experience.
 
 ### What I am Learning right now?
