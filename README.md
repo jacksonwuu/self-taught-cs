@@ -1,6 +1,6 @@
 # Self-taught Computer Science
 
-![](https://img.shields.io/badge/Subscribe-Telegram%20Channel-blue) ![](https://img.shields.io/twitter/follow/jacksonwuuu?style=social)
+![](https://img.shields.io/badge/Subscribe-Telegram%20Channel-blue?link=https://t.me/yinghexiaozu&link=https://t.me/yinghexiaozu) ![](https://img.shields.io/twitter/url?label=Twitter&style=social&url=https%3A%2F%2Ftwitter.com%2Fjacksonwuuu)
 
 Documenting my self-learning experience.
 
