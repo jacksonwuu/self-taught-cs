@@ -11,7 +11,6 @@ What I am Learning right now?
 - [CMU 15-721 Advanced Database Systems](https://15721.courses.cs.cmu.edu/spring2020/schedule.html)
 
 - [SU CS144 Introduction to Computer Networking](https://cs144.github.io/)
-- 
 
 - Assembly Language
 
