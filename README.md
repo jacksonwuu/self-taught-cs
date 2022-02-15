@@ -8,7 +8,7 @@ Documenting my self-learning experience.
 
 ### What I am Learning right now?
 
--   [MIT 6.828 Operating System Engineering](https://pdos.csail.mit.edu/6.828/2018/schedule.html)
+-   [MIT 6.828 Operating System Engineering (2018 Fall)](https://pdos.csail.mit.edu/6.828/2018/schedule.html)
 
 -   [MIT 6.824 Distributed Systems](http://nil.lcs.mit.edu/6.824/2020/schedule.html)
 
