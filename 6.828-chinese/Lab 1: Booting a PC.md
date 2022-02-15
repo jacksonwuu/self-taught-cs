@@ -6,23 +6,25 @@
 2、熟悉开发工具如 QEMU, GCC, GDB 等。
 3、理解操作系统的启动过程。
 
-PS: 可以在这个实验上多花的时间，学一学 C, Makefile, gcc, nasm, ld 等开发工具（如果不熟悉的话）。
+PS: 可以在这个实验上多花的时间，学一学 C, Makefile, gcc, nasm, ld 等开发工具（如果不熟悉的话）。如果时间充裕，可以把*xv6-book*给看一遍，这本书也有中文翻译的。注意，xv6-book 有两种版本，旧的是 x86 版本，新的是 risc 版本。
 
 ### Exercises
 
 #### 1 熟悉 x86 汇编语言
 
-阅读 [PC Assembly Language](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf)，写一些简单的汇编代码, 比如说add/sub/multi/echo 函数。
+阅读 [PC Assembly Language](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf)，写一些简单的汇编代码, 比如说 add/sub/multi/echo 函数。
 
-理解 x86 寄存器。
+理解 x86 寄存器，主要是 x86 cpu 上的寄存器，寄存器的演变过程，如何从 8bit 的一直到 64bit 的，以及不同长度寄存器的关系，各个寄存器的作用等。
 
 对汇编语言理解地越深入越有利于学习操作系统，因为汇编语言有助于你理解程序如何控制硬件，而操作系统实际上就是一组和硬件打交道的程序。
 
 #### 2 用 GDB 看 ROM BIOS 做了什么
 
+GDB 是一个非常复杂的工具，先明白最基本的使用即可。
+
 #### 3 用 GDB 看 Boot Loader 运行过程
 
-1、在什么地方开始执行 32bit 代码的？究竟是什么导致了 16bit 到 32bit 模式的转变？
+1、在什么地方开始执行 32bit 代码的？究竟是什么导致了 16bit 到 32bit 模式的转变？（实模式到保护模式到转变）
 
 2、Boot Loader 最后一条指令是什么？它加载内核的第一条指令是什么？
 
@@ -32,7 +34,7 @@ PS: 可以在这个实验上多花的时间，学一学 C, Makefile, gcc, nasm, 
 
 #### 4 熟悉 C 语言指针
 
-阅读 C 语言经典书籍 K&R，尤其是指针的部分。
+阅读 C 语言经典书籍 K&R，尤其是指针的部分。K&R 是非常经典的书籍，只有两百多页，强烈建议找一本来看看。
 
 #### 5 修改代码再运行
 
