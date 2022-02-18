@@ -2,17 +2,44 @@
 
 本实验的目标：
 
-1、写操作系统的内存管理代码。
+1、实现操作系统的内存管理模块。
 
 内存管理有两个模块：
 
--   virtual memory
-
 -   physical memory allocator
 
-#### physical memory allocator
+-   virtual memory
 
-先理解 CPU 对分页的支持。
+PS：在开始做实验之前，建议先充分理解 CPU 对分页的支持（MMU），以及操作系统管理内存管理的知识，推荐阅读 Linux 0.11 内存管理的代码。
+
+我的理解：一个页有4KB的大小，这是内存管理的最小粒度。一个页要么被标记为使用，要么被标记为未使用。页表是用来找到页的数据结构，页表存在于内存中的，其实就是C语言里定义的的一个数组，这个数组的元素是页的信息，或者叫做页表项。这个页表项非常有用，操作系统就是通过管理这个页表项来间接管理内存的。
+
+
+主要是实现以下几个函数，使其按照预期工作：
+
+```c
+static void * boot_alloc(uint32_t n)
+
+void page_init(void)
+
+struct PageInfo * page_alloc(int alloc_flags)
+
+void page_free(struct PageInfo *pp)
+
+void page_decref(struct PageInfo* pp)
+
+pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
+
+static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
+
+int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
+
+struct PageInfo * page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
+
+void page_remove(pde_t *pgdir, void *va)
+```
+
+#### physical memory allocator
 
 It keeps track of which pages are free with a linked list of struct PageInfo objects (which, unlike xv6, are not embedded in the free pages themselves), each corresponding to a physical page.
 
