@@ -2,7 +2,9 @@
 
 ![](https://img.shields.io/badge/Subscribe-Telegram%20Channel-blue?link=https://t.me/yinghexiaozu&link=https://t.me/yinghexiaozu) ![](https://img.shields.io/twitter/url?label=Twitter&style=social&url=https%3A%2F%2Ftwitter.com%2Fjacksonwuuu)
 
-Documenting my self-learning experience. Note: Many posts are still draft.
+Documenting my self-learning experience. 
+
+Note: Many posts are still draft.
 
 -   [国外大学计算机公开课学习指南](./guide.md)
 

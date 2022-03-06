@@ -12,9 +12,7 @@
 
 PS：在开始做实验之前，建议先充分理解 CPU 对分页的支持（MMU），以及操作系统管理内存管理的知识，推荐阅读 Linux 0.11 内存管理的代码。
 
-我的理解：一个页有 4KB 的大小，这是内存管理的最小粒度。一个页要么被标记为使用，要么被标记为未使用。页表是用来找到页的数据结构，页表存在于内存中的，其实就是 C 语言里定义的的一个数组，这个数组的元素是页的信息，或者叫做页表项。这个页表项非常有用，操作系统就是通过管理这个页表项来间接管理内存的。
-
-主要是实现以下几个函数，使其按照预期工作：
+主要是实现以下几个函数，使其按照预期工作即可：
 
 ```c
 static void * boot_alloc(uint32_t n)
@@ -23,6 +21,7 @@ void page_init(void)
 
 struct PageInfo * page_alloc(int alloc_flags)
 
+// 用于释放一个页的内存，把页数组中对应的项清零，再把物理页的内存全部清零。
 void page_free(struct PageInfo *pp)
 
 void page_decref(struct PageInfo* pp)
@@ -39,8 +38,6 @@ void page_remove(pde_t *pgdir, void *va)
 ```
 
 实际上，只要理解了用来表示内存的数据结构，那么这些函数很快就可以写出来。
-
-在 JOS 里是用一个链表来表示页的
 
 #### physical memory allocator
 

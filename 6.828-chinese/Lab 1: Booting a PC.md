@@ -42,7 +42,7 @@ Set a breakpoint at address 0x7c00, which is where the boot sector will be loade
 
 答：模式的转变其实就是改变 cr0 寄存器的 PE 位，把它从 0 改成 1。顺着代码一路往下走很快就会发现这个指令。可以查看`seta20.2`符号所在的地址，具体的代码就是在这里执行的。
 
-关于CR0寄存器的维基百科：[Control register](https://en.wikipedia.org/wiki/Control_register)
+关于 CR0 寄存器的维基百科：[Control register](https://en.wikipedia.org/wiki/Control_register)
 
 2、Boot Loader 最后一条指令是什么？它加载内核的第一条指令是什么？
 
@@ -94,4 +94,4 @@ Read through kern/printf.c, lib/printfmt.c, and kern/console.c, and make sure yo
 
 调用约定可以看 [PC Assembly Language]()，里面说得很详细了。
 
-backtrack功能主要是关注 ebp 寄存器的值，因为按照调用约定，每次调用函数的时候都会把栈指针 esp 保存到 ebp 里，通过检查 ebp 栈就能回溯调用的函数。（原理非常简单）
+backtrack 功能主要是关注 ebp 寄存器的值，因为按照 C 语言和汇编语言的调用约定，每次调用函数的时候都会把 ebp 的值（当前 ebp 的值表示的是上一个函数帧的基址）入栈，然后把当钱 esp 的值复制给 ebp ，通过检查 ebp 就能回溯调用的函数，即从当前的 ebp 的值出发，不断地往回寻址，就可以列出每次调用函数时esp的值，也就是每次调用函数时的函数帧基址。
