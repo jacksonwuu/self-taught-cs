@@ -116,3 +116,71 @@ xv6 Unix 的 fork()是把父进程的所有内存页拷贝到新的页里给子�
 在实现 copy-on-write 之前，需要先实现页错误的处理程序。
 
 练习 8：实现 sys_env_set_pgfault_upcall 系统调用。
+
+#### 用户环境的 normal stack and exception stack
+
+在正常执行的过程中，JOS 的用户环境将会在正常的用户堆栈上运行，它的 ESP 寄存器开始指向 USTACKTOP，它入栈的数据所在的页处于 USTACKTOP-PGSIZE 和 USTACKTOP-1 之内。
+
+JOS 的用户异常栈也是一页大小。当发送页错误的时候，页错误处理程序可以利用异常栈，来处理页错误。
+
+#### 触发用户页错误处理
+
+你需要改变`kern/trap.c`里的页错误处理代码去处理来自用户态的页错误。我们会把错误处理时的用户环境的状态叫做 trap-time 状态。
+
+如果没有页错误处理注册，JOS 内核会 destroy 掉用户环境，并附上一个 message。否则，内核会在异常栈里创建一个 trap frame，看起来就像是`inc/trap.h`里的 `UTrapframe` 结构体。
+
+                    <-- UXSTACKTOP
+
+trap-time esp
+trap-time eflags
+trap-time eip
+trap-time eax start of struct PushRegs
+trap-time ecx
+trap-time edx
+trap-time ebx
+trap-time esp
+trap-time ebp
+trap-time esi
+trap-time edi end of struct PushRegs
+tf_err (error code)
+fault_va <-- %esp when handler is run
+
+随着页异常处理程序运行在异常栈上，内核会整理用户环境以使得其恢复执行，你必须弄清楚这个过程是如何发生的。`fault_va`是产生页错误的虚拟地址。
+
+如果在执行页错误处理代码的时候，它本身也发生了错误，在这种情况下，你应该在当前的 esp 下创建一个栈帧，你应该推入一个空白的 32 位，再推入一个 UTrapframe 结构。
+
+如果要测试`tf->tf_esp`是否在用户异常栈，只要测试它是否处于 `UXSTACKTOP-PGSIZE` 之间 `UXSTACKTOP-1` 即可。
+
+练习 9：实现`kern/trap.c`里的函数`page_fault_handler`。如果用户环境异常栈没有空间了怎么办？记得做好处理措施。
+
+#### 用户态页错误入口点
+
+接下来，你需要实现调用 C 处理程序和恢复程序的汇编例程，这个汇编例程会通过 `sys_env_set_pgfault_upcall()`注册到内核。
+
+练习 10：实现`lib/pfentry.S`里的`_pgfault_upcall`例程。有趣的部分在于返回出现页异常的用户态代码处。你可以直接返回，不需要通过内核。难点在于同时切换栈和重新加载 eip。
+
+最终，你需要实现用户级别的页错误处理机制，这是一个用户库。
+
+练习 11：完成`lib/pgfault.c`里的`set_pgfault_handler()`。
+
+#### 实现 Copy-on-Write Fork
+
+好了，现在我们有足够的基础功能来实现`copy-on-write fork()`了。
+
+我们提供了 fork()函数的骨架，在这个函数里，应该创建一个用户环境，然后扫描父用户环境的整个地址空间，然后给子用户环境设置相应的内存映射。dumbfork()和 fork()最关键的不同是前者拷贝整个内存而后者只是拷贝内存映射。fork()只有当某个子用户环境尝试写入的时候。
+
+fork()的流程如下：
+
+1. parent 调用 set_pgfault_handler()去设置好页错误处理函数。
+2. parent 调用 sys_exofork()去创建 child 。
+3. parent 调用 duppage()来为 child 建立内存映射。标记 PTE_COW。
+4. parent 为 child 设置页错误入口点函数。
+5. child 现在可以准备运行了，所以 parent 将其标记为 runable。
+
+每当一个 child 想要写入一个页时，发生页错误，下面是页错误的处理过程：
+
+1. 内核传递页错误到`_pgfault_upcall`，它会调用 fork()'s pgfault() handler。
+2. pgfault()检查页错误是 write，并且检查目标页的 PTE 被标记为 PTE_COW。
+3. pgfault()接着申请一个新页，然后把把 child 想要修改的地址的虚拟地址映射到这个页上，PTE 标记为合适的权限。
+
+练习 12：Implement fork, duppage and pgfault in lib/fork.c.
