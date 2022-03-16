@@ -184,3 +184,79 @@ fork()的流程如下：
 3. pgfault()接着申请一个新页，然后把把 child 想要修改的地址的虚拟地址映射到这个页上，PTE 标记为合适的权限。
 
 练习 12：Implement fork, duppage and pgfault in lib/fork.c.
+
+### C Preemptive Multitasking and Inter-Process communication (IPC)
+
+#### 时钟中断和预先制止
+
+运行 `user/spin` 测试程序。这个测试程序 fork 了一个子用户环境，这个子用户环境一旦获得了 CPU 的控制权，它就通过一个简单的循环来自旋。用户环境和内核都不能重新控制 CPU。这显然在保护系统方面有一些问题，因为一个子用户环境可以通过无限的循环来控制住 CPU，导致整个系统执行中断。所以我们必须要实现时钟中断切换用户环境的功能。
+
+##### 中断规则
+
+外部中断是和 IRQ 们联系在一起的。总共有 16 个 IRQ，0 号到 15 号。IRQ 号码和 IDT 项的映射不是固定的。 `picirq.c` 里的 `pic_initmaps` 对其建立了相应的线性映射。
+
+在`inc/trap.h`里，IRQ_OFFSET 被设置为十进制的 32。因此，IDT 32-47 相应地映射了 IRQ 0-15。例如，时钟中断是 IRQ 0。因此，IDT[IRQ_OFFSET+0]为内核里时钟中断处理例程的地址。选择这个 IRQ_OFFSET 是为了使设备中断不会与处理器异常重叠，否则很容易引起混淆。(事实上，在运行 MS-DOS 的早期 pc 中，IRQ_OFFSET 实际上是零，这确实在处理硬件中断和处理处理器异常之间造成了巨大的混淆!)
+
+在 JOS 与 xv6 Unix 相比做了一些关键的简化。在内核中总是禁用外部设备中断(和 xv6 一样，在用户空间中启用)。外部中断由%eflags 寄存器的 FL_IF 标志位控制(参见 inc/mmu.h)。设置此位时，将启用外部中断。虽然可以通过几种方式修改该位，但我们做了简化，我们将在进入和离开用户态时仅通过保存和恢复%eflags 寄存器来处理它。
+
+你必须确保在用户环境中运行时设置了 FL_IF 标志，以便当一个中断到达时，它被传递到处理器并由你的中断代码处理。否则，中断将被屏蔽或忽略，直到重新启用中断。我们用引导加载程序的第一个指令屏蔽了中断，到目前为止，我们还没有重新启用它。
+
+练习 13：修改`kern/trapentry.S`和`kern/trap.c`去初始化合适的 IDT 条目，然后位 IRQ 0-15 提供处理程序。然后修改`kern/env.c`里的`env_alloc()`来保证用户环境运行的时候总是把中断打开了。
+
+另外，在 sched_halt()中取消注释 sti 指令，以便空闲的 cpu 可以解除屏蔽中断。
+
+当调用硬件中断处理程序时，处理器从不推入错误代码。此时，您可能需要重新阅读 80386 参考手册 9.2 节，或 IA-32 Intel 架构软件开发人员手册第 3 卷 5.8 节。
+
+在做了这个练习之后，如果你用任何运行了一段时间的测试程序运行你的内核(例如 spin)，你应该会看到内核打印硬件中断的陷阱帧。虽然现在在处理器中启用了中断，但 JOS 还没有处理它们，所以您应该看到它将每个中断错误地归为当前运行的用户环境并销毁该用户环境，最终它将把所有的用户环境都销毁掉。
+
+##### 处理时钟中断
+
+在`user/spin`程序里，子用户环境启动后，它开始自旋。我们让硬件定时发送时钟中断，然后把 CPU 的控制权转交给内核，内核再去执行调度任务。
+
+我们已经为你写好了`lapic_init`和`pic_init` (from i386_init in init.c),调用这两个函数来创建时钟和中断管理器来生成中断。你现在需要写处理这些中断的代码。
+
+练习 14：Modify the kernel's trap_dispatch() function so that it calls sched_yield() to find and run a different environment whenever a clock interrupt takes place.
+
+You should now be able to get the user/spin test to work: the parent environment should fork off the child, sys_yield() to it a couple times but in each case regain control of the CPU after one time slice, and finally kill the child environment and terminate gracefully.
+
+#### IPC
+
+(技术上来说 JOS 里的应该叫做“用户环境内通信”，但是大家都叫做进程间通信，那么我们就用这个标准术语。)
+
+我们已经专注于操作系统的“隔离”方面，这看起来就像是每个进程都占有整个机器。另外一个操作系统提供的很重要的服务就是允许进程间通信。这是一个让程序间交互的很强大的功能。Unix 的管道模型就是一个典型的例子。
+
+现在有许多进程间通信模型。即使是现在也有很多关于哪种 IPC 是最好的争议。我们不会去争论这个，而是实现尝试实现了一个简单的 IPC 机制。
+
+##### IPC in JOS
+
+你要实现几个额外的 JOS 内核系统调用，合起来提供简单的进程间通信机制。你会实现两个系统调用`sys_ipc_recv`和`sys_ipc_try_send`。然后你要实现两个库函数`ipc_recv`和`ipc_send`。
+
+在 JOS 的 IPC 机制中，用户环境发送给另外一个用户环境的消息包含两个部分：一个 32 位的值以及可选的单个页的映射。允许用户环境在消息里传递页映射是传递更多数据的一种高效方式，允许用户环境之间共享内存。
+
+##### 发送和接受消息
+
+为了接收消息，一个用户环境调用`sys_ipc_recv`。这个系统调用重新调度当前的用户环境，然后停止运行该用户环境直到一个消息被接收到。当一个环境等着接收消息的时候，其他任何用户环境都可以给它发送消息，不只是一个特定的用户环境，也不只是有父子关系的用户环境。换句话说，我们在 Part A 实现的权限检查并不应用到这个 IPC 上，因为 IPC 系统调用到设计特别小心来保证它是安全的：一个用户环境无法只是通过发送它的消息就导致另外一个用户环境发生故障（除非目标用户环境本身就有 bug）。
+
+为了尝试发送一个值，一个用户环境调用`sys_ipc_try_send`，同时带上目标用户环境的 id 和想要发送的值。如果一个用户环境正在接收（调用`sys_ipc_recv`），那么发送者传递消息并返回 0。否则发送者返回`-E_IPC_NOT_RECV`来表示目标用户环境当前并没有在等待接收值。
+
+给用户提供的库函数`ipc_recv`会调用`sys_ipc_revc`，然后到当前用户环境的 Env 结构中去查找接收到的值。
+
+同样的，库函数`ipc_send`也会重复调用`sys_ipc_try_send`直到发送成功。
+
+##### Transferring Pages
+
+当一个用户环境带着一个可用的 dstva 参数（在 UTOP 之下）调用`sys_ipc_recv`时，表明用户环境将会收到一个页面映射。如果发送者发送了一个页，那么这个页应该被映射到接收者地址空间的 dstva。如果接收者已经有一个页在 dstva 处有映射，那就把之前的映射给取消掉。
+
+当一个用户环境带着一个可用的`srcva`参数（在 UTOP 之下）调用`sys_ipc_try_send`，这意味着发送者想要发送一个当前正映射在 srcva 的页给接收者，带着权限参数。IPC 成功之后，发送者保持它原来的映射在 srcva 处的页在它的地址空间，但是接收者也能获取一个映射，映射到接收者提供的 dstva，在用户的地址空间。
+
+最终，这个页由接收者和发送者共享。
+
+如果发送者和接收者任何一方没有指示一个页需要被转移，那么就没有页会被转移。在任何 IPC 之后，内核会在接收者的 Env 数据结构的`env_ipc_perm`处设置新值，设为接收到的页的权限，如果没有接收到页那就设置为 0。
+
+##### 实现 IPC
+
+练习 15：实现`kern/syscall.c`里到`sys_ipc_recv`和`sys_ipc_try_send`。在实现它们之前，请通读它们的注视，因为这两个是一起工作的。当你在例程里调用 envid2env 时，你应该把 checkperm 位设置为 0，意味着任何用户环境都被允许发送 IPC 消息到任何用户环境，并且内核不做任何特别的权限检查，只是检查目标 envid 是不是正确的。
+
+然后实现`lib/ipc.c`里的`ipc_recv`和`ipc_send`。
+
+使用 user/pingpong 和 user/primes 函数去测试你的 IPC 机制。user/primes 会一直生成质数个用户环境直到 JOS 的用户环境用完。你可能会发现阅读 user/primes.c 很有趣。
