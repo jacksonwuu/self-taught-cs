@@ -18,6 +18,10 @@ Note: Many posts are still draft.
 
 -   [SU CS144 Computer Network](https://cs144.github.io/)
 
+### The key of self learning these courses
+
+Keep patient, keep curiosity, just learning every day, you will find you finish some courses some day.
+
 ### Resources
 
 -   [CS 自学指南](https://csdiy.wiki/)

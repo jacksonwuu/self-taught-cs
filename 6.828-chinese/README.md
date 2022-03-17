@@ -11,3 +11,10 @@
 
 -   [boot xv6](./Homework:%20boot%20xv6.md)
 -   [shell](./Homework:%20shell.md)
+
+### Reading material
+
+-   xv6-book
+-   80386 Reference Manual
+-   IA-32 Intel Architecture Software Developer's Manual
+-   https://pdos.csail.mit.edu/6.828/2018/reference.html
