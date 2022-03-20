@@ -28,26 +28,61 @@ UNIX xv6 文件系统的一个区块未 512 比特，和扇区大小一样。但
 
 #### 文件元数据
 
-我们在`inc/fs.h`里定义的`File`结构体中定义里元数据的布局，这个用来描述一个文件系统的文件。这个元数据包含了文件名、大小、类型（正常文件或目录），以及一个指向存储该文件区块的指针。如上所述，我们不需要inode，所以这个元数据存储在目录项里。不像大多数“真实“文件系统，为了简化，我们使用一个`File`结构体来代表文件元数据，这个元数据会存储在磁盘，也会出现在内存里。
+我们在`inc/fs.h`里定义的`File`结构体中定义里元数据的布局，这个用来描述一个文件系统的文件。这个元数据包含了文件名、大小、类型（正常文件或目录），以及一个指向存储该文件区块的指针。如上所述，我们不需要 inode，所以这个元数据存储在目录项里。不像大多数“真实“文件系统，为了简化，我们使用一个`File`结构体来代表文件元数据，这个元数据会存储在磁盘，也会出现在内存里。
 
 The f_direct array in struct File contains space to store the block numbers of the first 10 (NDIRECT) blocks of the file, which we call the file's direct blocks. For small files up to 10\*4096 = 40KB in size, this means that the block numbers of all of the file's blocks will fit directly within the File structure itself. For larger files, however, we need a place to hold the rest of the file's block numbers. For any file greater than 40KB in size, therefore, we allocate an additional disk block, called the file's indirect block, to hold up to 4096/4 = 1024 additional block numbers. Our file system therefore allows files to be up to 1034 blocks, or just over four megabytes, in size. To support larger files, "real" file systems typically support double- and triple-indirect blocks as well.
 
 #### 目录 vs 常规文件
 
-A File structure in our file system can represent either a regular file or a directory; these two types of "files" are distinguished by the type field in the File structure. The file system manages regular files and directory-files in exactly the same way, except that it does not interpret the contents of the data blocks associated with regular files at all, whereas the file system interprets the contents of a directory-file as a series of File structures describing the files and subdirectories within the directory.
-The superblock in our file system contains a File structure (the root field in struct Super) that holds the meta-data for the file system's root directory. The contents of this directory-file is a sequence of File structures describing the files and directories located within the root directory of the file system. Any subdirectories in the root directory may in turn contain more File structures representing sub-subdirectories, and so on.
+我们文件系统的一个文件结构可以代表普通文件或者目录；这两种“文件”通过`type`字段来做区分。文件系统管理普通文件和目录的方式都是一样的，The file system manages regular files and directory-files in exactly the same way, except that it does not interpret the contents of the data blocks associated with regular files at all, whereas the file system interprets the contents of a directory-file as a series of File structures describing the files and subdirectories within the directory.
+
+我们文件系统里的超级区块包含了一个`File`结构体（`Super`结构体里的`root`字段），这里面保存了文件系统根目录的元数据。这个目录里的内容是一串`File`结构体，这些结构体描述了在根目录下的文件和目录。任何根目录下的子目录也会包含`File`结构体来表示孙子目录，以此类推。
 
 ## 文件系统
 
+这个实验的目的不是实现整个文件系统，而是实现一些关键的组件。特别的，你要负责把区块读到区块缓存里以及把它们重新刷回磁盘；申请磁盘区块；映射文件偏移到磁盘区块；实现 read、write、open（in the IPC interface）。因为你不用自己实现整个文件系统，但是很重要的是你要熟悉已经提供代码和不同类型的文件系统的接口。
 
+### 访问磁盘
 
-### 进入磁盘
+我们操作系统的文件系统需要能访问磁盘，但是我们还没有实现任何磁盘访问功能。我们并不把 IDE 磁盘驱动也放到内核里，而是放到用户级别的文件系统环境里。我们只会轻微地改造内核，以便让文件系统环境有访问磁盘的权限。
+
+It is easy to implement disk access in user space this way as long as we rely on polling, "programmed I/O" (PIO)-based disk access and do not use disk interrupts. It is possible to implement interrupt-driven device drivers in user mode as well (the L3 and L4 kernels do this, for example), but it is more difficult since the kernel must field device interrupts and dispatch them to the correct user-mode environment.
+
+x86 处理器通过 EFLAGS 寄存器里的 IOPL 位来决定是否保护模式代码可以指向 I/O 指令，比如说 IN 和 OUT 指令。因为所有的 IDE 磁盘寄存器都是在 x86 的 I/O 空间，而不是通过存储器映射的方式，给文件系统“I/O 权限”是让它访问这些寄存器的唯一方式。实际上，EFLAGS 寄存器里的 IOPL 位给内核提供了一种“all-or-nothing”的方法来控制用户态代码是否可以访问磁盘。在我们的情况下，我们想要文件系统环境可以访问 I/O 空间，但是我们不想要任何用户环境可以访问 I/O 空间。
+
+练习 1：把`ENV_TYPE_FS`传入用户环境创建函数`env_create`，`i386_init`通过这个参数来区分是不是文件系统环境。修改`env.c`里的的`env_create`，以便给文件系统环境 I/O 权限，但是一定不要给其他环境这个权限。
 
 ### 区块缓存
 
+In our file system, we will implement a simple "buffer cache" (really just a block cache) with the help of the processor's virtual memory system. The code for the block cache is in fs/bc.c.
+
+Our file system will be limited to handling disks of size 3GB or less. We reserve a large, fixed 3GB region of the file system environment's address space, from 0x10000000 (DISKMAP) up to 0xD0000000 (DISKMAP+DISKMAX), as a "memory mapped" version of the disk. For example, disk block 0 is mapped at virtual address 0x10000000, disk block 1 is mapped at virtual address 0x10001000, and so on. The diskaddr function in fs/bc.c implements this translation from disk block numbers to virtual addresses (along with some sanity checking).
+
+Since our file system environment has its own virtual address space independent of the virtual address spaces of all other environments in the system, and the only thing the file system environment needs to do is to implement file access, it is reasonable to reserve most of the file system environment's address space in this way. It would be awkward for a real file system implementation on a 32-bit machine to do this since modern disks are larger than 3GB. Such a buffer cache management approach may still be reasonable on a machine with a 64-bit address space.
+
+Of course, it would take a long time to read the entire disk into memory, so instead we'll implement a form of demand paging, wherein we only allocate pages in the disk map region and read the corresponding block from the disk in response to a page fault in this region. This way, we can pretend that the entire disk is in memory.
+
+```
+练习2：Implement the bc_pgfault and flush_block functions in fs/bc.c. bc_pgfault is a page fault handler, just like the one your wrote in the previous lab for copy-on-write fork, except that its job is to load pages in from the disk in response to a page fault. When writing this, keep in mind that (1) addr may not be aligned to a block boundary and (2) ide_read operates in sectors, not blocks.
+
+The flush_block function should write a block out to disk if necessary. flush_block shouldn't do anything if the block isn't even in the block cache (that is, the page isn't mapped) or if it's not dirty. We will use the VM hardware to keep track of whether a disk block has been modified since it was last read from or written to disk. To see whether a block needs writing, we can just look to see if the PTE_D "dirty" bit is set in the uvpt entry. (The PTE_D bit is set by the processor in response to a write to that page; see 5.2.4.3 in chapter 5 of the 386 reference manual.) After writing the block to disk, flush_block should clear the PTE_D bit using sys_page_map.
+```
+
+The fs_init function in fs/fs.c is a prime example of how to use the block cache. After initializing the block cache, it simply stores pointers into the disk map region in the super global variable. After this point, we can simply read from the super structure as if they were in memory and our page fault handler will read them from disk as necessary.
+
 ### 区块位图
 
+After fs_init sets the bitmap pointer, we can treat bitmap as a packed array of bits, one for each block on the disk. See, for example, block_is_free, which simply checks whether a given block is marked free in the bitmap.
+
+Exercise 3. Use free_block as a model to implement alloc_block in fs/fs.c, which should find a free disk block in the bitmap, mark it used, and return the number of that block. When you allocate a block, you should immediately flush the changed bitmap block to disk with flush_block, to help file system consistency.
+
 ### 文件操作
+
+We have provided a variety of functions in fs/fs.c to implement the basic facilities you will need to interpret and manage File structures, scan and manage the entries of directory-files, and walk the file system from the root to resolve an absolute pathname. Read through all of the code in fs/fs.c and make sure you understand what each function does before proceeding.
+
+Exercise 4. Implement file_block_walk and file_get_block. file_block_walk maps from a block offset within a file to the pointer for that block in the struct File or the indirect block, very much like what pgdir_walk did for page tables. file_get_block goes one step further and maps to the actual disk block, allocating a new one if necessary.
+
+file_block_walk and file_get_block are the workhorses of the file system. For example, file_read and file_write are little more than the bookkeeping atop file_get_block necessary to copy bytes between scattered blocks and a sequential buffer.
 
 ### 文件系统接口
 

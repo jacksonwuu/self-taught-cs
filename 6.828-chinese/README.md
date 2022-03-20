@@ -6,11 +6,18 @@
 -   [Lab 2: Memory Management](./Lab%202:%20Memory%20Management.md)
 -   [Lab 3: User Environments](./Lab%203:%20User%20Environments.md)
 -   [Lab 4: Preemptive Multitasking](./Lab%204:%20Preemptive%20Multitasking.md)
+-   [Lab 5: File system, Spawn and Shell](./Lab%205:%20File%20system%2C%20Spawn%20and%20Shell.md)
+-   [Lab 6: Network Driver](./Lab%206:%20Network%20Driver.md)
+-   [Lab 7: Final JOS project](./Lab%207:%20Final%20JOS%20project.md)
 
 ### Homework
 
 -   [boot xv6](./Homework:%20boot%20xv6.md)
 -   [shell](./Homework:%20shell.md)
+-   [xv6 log]()
+-   [xv locking]()
+-   [xv CPU alarm]()
+-   [mmap()]()
 
 ### My gains
 
