@@ -30,7 +30,7 @@ UNIX xv6 文件系统的一个区块未 512 比特，和扇区大小一样。但
 
 我们在`inc/fs.h`里定义的`File`结构体中定义里元数据的布局，这个用来描述一个文件系统的文件。这个元数据包含了文件名、大小、类型（正常文件或目录），以及一个指向存储该文件区块的指针。如上所述，我们不需要 inode，所以这个元数据存储在目录项里。不像大多数“真实“文件系统，为了简化，我们使用一个`File`结构体来代表文件元数据，这个元数据会存储在磁盘，也会出现在内存里。
 
-The f_direct array in struct File contains space to store the block numbers of the first 10 (NDIRECT) blocks of the file, which we call the file's direct blocks. For small files up to 10\*4096 = 40KB in size, this means that the block numbers of all of the file's blocks will fit directly within the File structure itself. For larger files, however, we need a place to hold the rest of the file's block numbers. For any file greater than 40KB in size, therefore, we allocate an additional disk block, called the file's indirect block, to hold up to 4096/4 = 1024 additional block numbers. Our file system therefore allows files to be up to 1034 blocks, or just over four megabytes, in size. To support larger files, "real" file systems typically support double- and triple-indirect blocks as well.
+`File`结构体里的`f_direct`数组，它包含了文件的前 10 个（NDIRECT）区块，我们把这些区块叫做直接文件直接区块。对于一个小于 10\*4096 = 40KB 大小的文件，它本身就可以完全包含在`File`结构体里。但是对于大一些的文件来说，我们需要其他地方来放置文件区块的编号。对于任何大于 40KB 的文件来说，因此，我们申请一个额外的磁盘区块，叫做文件间接区块，来保存额外的 4096/4 = 1024 个区块编号。我们的文件系统也因此允许文件达到 1034 个区块，也就是刚刚超过 4MB 大小。为了支持更大的文件，真实的文件系统一般都是 double-indirect 或者 trible-indirect 的区块。
 
 #### 目录 vs 常规文件
 
@@ -54,39 +54,81 @@ x86 处理器通过 EFLAGS 寄存器里的 IOPL 位来决定是否保护模式�
 
 ### 区块缓存
 
-In our file system, we will implement a simple "buffer cache" (really just a block cache) with the help of the processor's virtual memory system. The code for the block cache is in fs/bc.c.
+在我们的文件系统里，我们会在处理器虚拟内存系统的帮助下，实现一个简单的“buffer cache”（真的只是一个区块缓存）。代码在`fs/bc.c`里。
 
-Our file system will be limited to handling disks of size 3GB or less. We reserve a large, fixed 3GB region of the file system environment's address space, from 0x10000000 (DISKMAP) up to 0xD0000000 (DISKMAP+DISKMAX), as a "memory mapped" version of the disk. For example, disk block 0 is mapped at virtual address 0x10000000, disk block 1 is mapped at virtual address 0x10001000, and so on. The diskaddr function in fs/bc.c implements this translation from disk block numbers to virtual addresses (along with some sanity checking).
+我们的文件系统把磁盘的大小限制在 3GB 以下。我们保留 3GB 大小的地址空间区域给文件系统，从 0x10000000（DISKMAP） 到 0xD0000000（DISKMAP+DISKMAX），作为“内存映射”版本的磁盘。例如，磁盘块 0 会被映射到虚拟地址 0x10000000，磁盘块 1 映射到虚拟地址 0x10001000，以此类推。`fs/bc.c`里的`diskaddr`函数实现里这个从磁盘区块号到虚拟地址的映射（包括一些完整性检查）。
 
-Since our file system environment has its own virtual address space independent of the virtual address spaces of all other environments in the system, and the only thing the file system environment needs to do is to implement file access, it is reasonable to reserve most of the file system environment's address space in this way. It would be awkward for a real file system implementation on a 32-bit machine to do this since modern disks are larger than 3GB. Such a buffer cache management approach may still be reasonable on a machine with a 64-bit address space.
+我们的文件系统环境有它自己的虚拟地址空间，这和其他所有的用户环境的地址空间相独立的，文件系统环境环境唯一要做的事情就是去实现文件访问，以这种方式预留文件系统地址空间是合理的。一个真实的文件系统如果这样实现在 32 位机器上，那么是很尴尬的，因为现代磁盘很多比 3GB 大。像这样的 buffer cache 管理在 64 位的地址空间机器上来说也是合理的。
 
-Of course, it would take a long time to read the entire disk into memory, so instead we'll implement a form of demand paging, wherein we only allocate pages in the disk map region and read the corresponding block from the disk in response to a page fault in this region. This way, we can pretend that the entire disk is in memory.
+当然了，把整个磁盘读进内存要花很多时间，so instead we'll implement a form of demand paging, wherein we only allocate pages in the disk map region and read the corresponding block from the disk in response to a page fault in this region. This way, we can pretend that the entire disk is in memory.
 
-```
-练习2：Implement the bc_pgfault and flush_block functions in fs/bc.c. bc_pgfault is a page fault handler, just like the one your wrote in the previous lab for copy-on-write fork, except that its job is to load pages in from the disk in response to a page fault. When writing this, keep in mind that (1) addr may not be aligned to a block boundary and (2) ide_read operates in sectors, not blocks.
+练习 2：实现`fs/bc.c`里的`bc_pgfault`和`flush_block`两个函数，就像你在之前的实验里写的 copy-on-write fork 一样，除了这个是从磁盘中加载页之外。当写这个的时候，记住（1）`addr`可能没有和磁盘块对其（2）`ide_read`是在操作扇区而不是区块。
 
-The flush_block function should write a block out to disk if necessary. flush_block shouldn't do anything if the block isn't even in the block cache (that is, the page isn't mapped) or if it's not dirty. We will use the VM hardware to keep track of whether a disk block has been modified since it was last read from or written to disk. To see whether a block needs writing, we can just look to see if the PTE_D "dirty" bit is set in the uvpt entry. (The PTE_D bit is set by the processor in response to a write to that page; see 5.2.4.3 in chapter 5 of the 386 reference manual.) After writing the block to disk, flush_block should clear the PTE_D bit using sys_page_map.
-```
+flush_block 函数应该把一个区块写入 disk。如果这个区块不在区块缓存里，那么 flush_block 不应该做任何事情。我们会使用 VM 硬件来追踪一个硬件在上次读取之后是否被修改过，以及上次写入磁盘后是否被修改过。为了查看一个区块是否需要写入，我们只要看`PTE_D`的“dirty”位是否设置了，通过 uvpt 项来查看这个。（PTE_D 位由处理器设置，以响应对该页的写操作；请参考 386 参考手册第 5 章的 5.2.4.3。）将该块写入磁盘后，`flush_block`应该使用`sys_page_map`清除`PTE_D`位。
 
-The fs_init function in fs/fs.c is a prime example of how to use the block cache. After initializing the block cache, it simply stores pointers into the disk map region in the super global variable. After this point, we can simply read from the super structure as if they were in memory and our page fault handler will read them from disk as necessary.
+`fs/fs.c`里的`fs_init`函数是使用块缓存的一个主要例子。在初始化块缓存之后，它就简单地把指针存储在磁盘映射区域（在`super`结构体里）。在此之后，我们可以简单地从`super`结构体读取，好像它们就在内存里一样，而且我们的页错误处理程序也会把它们从磁盘里读出来。
 
 ### 区块位图
 
-After fs_init sets the bitmap pointer, we can treat bitmap as a packed array of bits, one for each block on the disk. See, for example, block_is_free, which simply checks whether a given block is marked free in the bitmap.
+在`fs_init`设置位图指针，我们可以把位图当作一组比特数组，每一个区块用一个位代表。看，例如，`block_is_free`，它只是检查一个给定的块在位图中是否被标记为空闲。
 
-Exercise 3. Use free_block as a model to implement alloc_block in fs/fs.c, which should find a free disk block in the bitmap, mark it used, and return the number of that block. When you allocate a block, you should immediately flush the changed bitmap block to disk with flush_block, to help file system consistency.
+练习三：使用`free_block`作为一个模型去实现`fs/fs.c`里的`allo_block`，应该到位图里找到一个空闲的磁盘块，并标记为已使用，以及返回该区块的数字。当你申请一个区块时，你应该立刻用`flush_block`把更改后的位图区块刷新到磁盘里，来保持文件系统的一致性。
 
 ### 文件操作
 
-We have provided a variety of functions in fs/fs.c to implement the basic facilities you will need to interpret and manage File structures, scan and manage the entries of directory-files, and walk the file system from the root to resolve an absolute pathname. Read through all of the code in fs/fs.c and make sure you understand what each function does before proceeding.
+我们已经在`fs/fs.c`里提供了一些基础函数，你可以用这些函数来实现管理`File`结构体、扫描和管理目录文件的项，以及遍历整个文件系统来解析绝对路径。请先把`fs/fs.c`里的代码通读一遍，确保你理解了每个函数的功能。
 
-Exercise 4. Implement file_block_walk and file_get_block. file_block_walk maps from a block offset within a file to the pointer for that block in the struct File or the indirect block, very much like what pgdir_walk did for page tables. file_get_block goes one step further and maps to the actual disk block, allocating a new one if necessary.
+练习 4：实现`file_block_walk`和`file_get_block`，file_block_walk maps from a block offset within a file to the pointer for that block in the struct File or the indirect block，非常像我们在`pgdir_walk`里为页表所做的事情。`file_get_block`再进一步地映射到了特定的磁盘块上，如果有必要就申请一个新的。
 
-file_block_walk and file_get_block are the workhorses of the file system. For example, file_read and file_write are little more than the bookkeeping atop file_get_block necessary to copy bytes between scattered blocks and a sequential buffer.
+文件系统由`file_block_walk`和`file_get_block`负责。For example, file_read and file_write are little more than the bookkeeping atop file_get_block necessary to copy bytes between scattered blocks and a sequential buffer.
 
 ### 文件系统接口
 
+现在，文件系统用户环境已经有它必要的功能了，我们必须让其他用户环境可以使用文件系统。因为其他的用户环境不可以直接调用文件系统的函数，我们会通过 RPC 把访问暴露出去，这个是建立在 JOS 的 IPC 机制之上的。调用文件系统的过程如下：
+
+```
+      Regular env           FS env
+   +---------------+   +---------------+
+   |      read     |   |   file_read   |
+   |   (lib/fd.c)  |   |   (fs/fs.c)   |
+...|.......|.......|...|.......^.......|...............
+   |       v       |   |       |       | RPC mechanism
+   |  devfile_read |   |  serve_read   |
+   |  (lib/file.c) |   |  (fs/serv.c)  |
+   |       |       |   |       ^       |
+   |       v       |   |       |       |
+   |     fsipc     |   |     serve     |
+   |  (lib/file.c) |   |  (fs/serv.c)  |
+   |       |       |   |       ^       |
+   |       v       |   |       |       |
+   |   ipc_send    |   |   ipc_recv    |
+   |       |       |   |       ^       |
+   +-------|-------+   +-------|-------+
+           |                   |
+           +-------------------+
+```
+
+所有在点划线之下就是从一个文件系统环境读取普通用户环境的一个读请求。在开头出发，read 简单地文件描述符分发到适当的设备读功能上，在这种情况下是`devfile_read`（我们可以有更多种类的设备）。`devfile_read`实现了磁盘上的`read`。这个和`lib/file.c`里其他的`devfile_*`都实现了客户端的文件系统操作，运作方式都差不多，都是绑定把参数绑定到请求结构体里，调用`fsipc`去发送 IPC 请求，解包数据并返回结果。`fsipc`简单地处理向服务器发送请求并接收应答的常见细节。
+
+文件系统服务器代码可以在`fs/server.c`中找到。它在`serve`函数中循环，不断地通过 IPC 接收请求，将该请求发送给适当的处理程序函数，并通过 IPC 将结果发送回来。在`read`的例子中，`serve`将分派给`serve_read`, `serve_read`将处理特定于读请求的 IPC 细节，比如解包请求结构，最后调用`file_read`来实际执行文件读操作。
+
+回想一下 JOS 的 IPC 机制，它允许环境发送一个 32 位数字，并可以选择共享一个页。为了从客户端向服务器发送请求，我们使用 32 位的数字作为请求类型(文件系统服务器 rpc 被编号了，就像系统调用编号一样)，并将请求的参数存储在通过 IPC 共享的页面上的一个联合`Fsipc`中。在客户端，我们总是在`fsipcbuf`共享页面;在服务器端，我们将传入的请求页面映射到`fsreq (0x0ffff000)`。
+
+服务器也通过 IPC 发送响应。我们使用 32 位数字作为函数的返回码。对于大多数 rpc 来说，这是它们返回的全部内容。`FSREQ_READ`和`FSREQ_STAT`也返回数据，它们只是简单地写到客户端请求发送的页上。不需要在响应 IPC 中发送此页，因为客户机首先将其共享给文件系统服务器。同样，在它的响应中，`FSREQ_OPEN`与客户端共享一个新的“Fd 页”。我们将快速返回到文件描述符页。
+
+练习 5：实现 fs/serv.c 里的 serve_read。
+
+serve_read's heavy lifting will be done by the already-implemented file_read in fs/fs.c (which, in turn, is just a bunch of calls to file_get_block). serve_read just has to provide the RPC interface for file reading. Look at the comments and code in serve_set_size to get a general idea of how the server functions should be structured.
+
+练习 6：实现`fs/serv.c`里的`serve_write`，以及`lib/file.c`里的`devfile_write`。
+
 ## Spawning Processes
+
+我们已经为 `spawn` (`lib/spawn.c`)写了一些代码，会创建一个新的用户环境，加载文件系统里的程序镜像，然后在子用户环境里开始运行这个程序。父进程接着独立于子进程继续运行。`spawn`就像是 UNIX 里的`fork`，之后在子进程里调用`exec`。
+
+我们实现了 `spawn` 而不是 UNXI 那样的 `exec`，因为这样更简单一些。想想你在用户空间里实现 `exec`，你会怎么做？确保你理解了为什么这样更难实现。
+
+练习 7：`spawn`依赖于新的系统调用`sys_env_set_trapframe`，来初始化新创建用户环境的状态。实现`sys_env_set_trapframe`(位于`kern/syscall.c`)。
 
 ### Sharing library state across fork and spawn
 
