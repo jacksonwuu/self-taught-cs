@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/badge/Subscribe-Telegram%20Channel-blue?link=https://t.me/yinghexiaozu&link=https://t.me/yinghexiaozu) ![](https://img.shields.io/twitter/url?label=Twitter&style=social&url=https%3A%2F%2Ftwitter.com%2Fjacksonwuuu)
 
-Documenting my self-learning experience. 
+Documenting my self-learning experience.
 
 Note: Many posts are still draft.
 
@@ -18,13 +18,16 @@ Note: Many posts are still draft.
 
 -   [SU CS144 Computer Network](https://cs144.github.io/)
 
+-   [CS 61B Data Structures (2019 Spring)](https://sp19.datastructur.es)
+
 ### The key of self learning these courses
 
-Keep patient, keep curiosity, just learning every day, you will find you finish some courses some day.
+Every courses will cost about 100 to 200 hours to finish. Keep patient, keep curiosity, just learning every day, you will find you finish some courses some day.
 
 ### Resources
 
 -   [CS 自学指南](https://csdiy.wiki/)
+-   [自学计算机科学](https://github.com/izackwu/TeachYourselfCS-CN/blob/master/TeachYourselfCS-CN.md)
 
 ### Other things
 
