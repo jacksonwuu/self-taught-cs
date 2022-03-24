@@ -37,7 +37,7 @@ struct PageInfo * page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 void page_remove(pde_t *pgdir, void *va)
 ```
 
-实际上，只要理解了用来表示内存的数据结构，那么这些函数很快就可以写出来。
+实际上，只要理解了用来表示内存的数据结构和 MMU，那么这些函数很快就可以写出来。
 
 #### physical memory allocator
 
