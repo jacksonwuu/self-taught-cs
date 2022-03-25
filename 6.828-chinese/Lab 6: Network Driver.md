@@ -67,31 +67,39 @@ interrupt   Log interrupts and changes to interrupt registers.
 
 #### The Core Network Server Environment
 
-The core network server environment is composed of the socket call dispatcher and lwIP itself. The socket call dispatcher works exactly like the file server. User environments use stubs (found in lib/nsipc.c) to send IPC messages to the core network environment. If you look at lib/nsipc.c you will see that we find the core network server the same way we found the file server: i386_init created the NS environment with NS_TYPE_NS, so we scan envs, looking for this special environment type. For each user environment IPC, the dispatcher in the network server calls the appropriate BSD socket interface function provided by lwIP on behalf of the user.
+核心网络服务器环境由两部分组成：socket call dispatcher 和 lwIP 本身。socket call dispatcher 的作用就像文件服务器。用户环境使用`stubs`（`lib/nsipc.c`）来发送 IPC 消息给核心网络环境。如果你查看`lib/nsipc.c`，你会看到我们查找核心网络服务器的方法和查找文件服务器一样：`i386_init`创建`NS`环境，`NS_TYPE_NS`类型，所以我们可以扫描`envs`，来查找这个特别的环境类型。对于每一个用户环境 IPC，网络服务器里的 dispatcher 会代表用户调用合适 BSD socket interface 函数（lwIP 提供的）。
 
-Regular user environments do not use the nsipc\_\* calls directly. Instead, they use the functions in lib/sockets.c, which provides a file descriptor-based sockets API. Thus, user environments refer to sockets via file descriptors, just like how they referred to on-disk files. A number of operations (connect, accept, etc.) are specific to sockets, but read, write, and close go through the normal file descriptor device-dispatch code in lib/fd.c. Much like how the file server maintained internal unique ID's for all open files, lwIP also generates unique ID's for all open sockets. In both the file server and the network server, we use information stored in struct Fd to map per-environment file descriptors to these unique ID spaces.
+普通用户环境不会直接使用`nsipc_*`，而是使用`lib/sockets.c`里的函数，它提供了一个机遇文件描述符的套接字 API。因此，用户环境通过文件描述符来联系套接字，就像它们联系磁盘文件一样。有一些套接字独有的操作，connect、accept 等，但是 read、write 和 close 操作都要经过`lib/fd.c`中普通的文件描述符设备调度代码。就像文件服务器为打开文件维护内部特有 ID 一样，lwIP 也会为打开的套接字生成特有 ID。在文件服务器和网络服务器里，我们使用存储在 Fd 结构体里的信息来映射每个用户环境的文件描述符到特有 ID 空间。
+
+尽管文件服务器和网络服务器的 IPC 调度程序看起来是一样的，但有一个关键的区别。像 accept 和 recv 这样的 BSD 套接字调用可以无限期地阻塞。如果调度程序要让 lwIP 执行这些阻塞调用中的一个，那么调度程序也会阻塞，并且对于整个系统来说，一次只能有一个未完成的网络调用。由于这是不可接受的，网络服务器使用用户级线程来避免阻塞整个服务器环境。对于每个传入的 IPC 消息，调度程序创建一个线程，并在新创建的线程中处理请求。如果线程阻塞，则只有该线程处于睡眠状态，而其他线程继续运行。
 
 Even though it may seem that the IPC dispatchers of the file server and network server act the same, there is a key difference. BSD socket calls like accept and recv can block indefinitely. If the dispatcher were to let lwIP execute one of these blocking calls, the dispatcher would also block and there could only be one outstanding network call at a time for the whole system. Since this is unacceptable, the network server uses user-level threading to avoid blocking the entire server environment. For every incoming IPC message, the dispatcher creates a thread and processes the request in the newly created thread. If the thread blocks, then only that thread is put to sleep while other threads continue to run.
 
-In addition to the core network environment there are three helper environments. Besides accepting messages from user applications, the core network environment's dispatcher also accepts messages from the input and timer environments.
+在核心网络环境之外，还有三个辅助环境。在接收用户应用的消息之外，核心网络环境分发器也会接收来自 input 和 timer 环境的消息。
 
 #### The Output Environment
 
-When servicing user environment socket calls, lwIP will generate packets for the network card to transmit. LwIP will send each packet to be transmitted to the output helper environment using the NSREQ_OUTPUT IPC message with the packet attached in the page argument of the IPC message. The output environment is responsible for accepting these messages and forwarding the packet on to the device driver via the system call interface that you will soon create.
+当为用户环境提供 socket 调用服务时，lwIP 会为网卡生成一个包来传输数据。lwIP 会发送每一个包到 output 环境，通过把包附在 IPC 消息的 page 参数里。output 环境负责接收这些消息以及转发这些包到设备驱动，通过系统调用接口（你马上就会创建的）。
 
 #### The Input Environment
 
-Packets received by the network card need to be injected into lwIP. For every packet received by the device driver, the input environment pulls the packet out of kernel space (using kernel system calls that you will implement) and sends the packet to the core server environment using the NSREQ_INPUT IPC message.
+网卡接收到的包需要被注入 lwIP。对于每一个设备驱动接收到的包，input 环境把包从内核空间里拉取出来（使用我们实现的内核系统调用）并通过`NSREQ_INPUT`IPC 消息发送包到内核服务器环境。
 
-The packet input functionality is separated from the core network environment because JOS makes it hard to simultaneously accept IPC messages and poll or wait for a packet from the device driver. We do not have a select system call in JOS that would allow environments to monitor multiple input sources to identify which input is ready to be processed.
+包输入功能独立于核心网络环境，因为 JOS 很难去同步 IPC 消息接收和拉取来自于设备驱动的包。JOS 里没有 select 系统调用来让环境监控多个输入源来找出哪一个输入已经准备好要被处理了。
 
-If you take a look at net/input.c and net/output.c you will see that both need to be implemented. This is mainly because the implementation depends on your system call interface. You will write the code for the two helper environments after you implement the driver and system call interface.
+如果你看一线`net/input.c`和`net/output.c`你会发现它们都需要被实现。这主要是因为它们的实现都依赖于你的系统调用接口。在你实现了驱动和系统调用接口后，你也要写这两个辅助环境的代码。
 
 #### The Timer Environment
 
-The timer environment periodically sends messages of type NSREQ_TIMER to the core network server notifying it that a timer has expired. The timer messages from this thread are used by lwIP to implement various network timeouts.
+定时器环境定时发送`NSREQ_TIMER`类型的消息来通知核心网络服务器一个定时器过期了。来自这个线程的定时器消息会被 lwIP 用来实现不同的网络超时。
 
 ## Part A: Initialization and transmitting packets
+
+你的内核没有时间概念，所以我们需要添加它。目前有一个由硬件生成的时钟中断，每 10ms 发送一次。在每个时间中断里，我们可以增加一个变量来表示时间已经提前了 10ms。这个在`kern/time.c`实现的，但是还没有完全集成到我们的内核里。
+
+练习 1：在`kern/trap.c`里为每一次时钟中断调用`time_tick`。实现`sys_time_msec`，然后把它添加到`kern/syscall.c`的系统调用里，乍样用户空间就可以访问时间了。
+
+用`make INIT_CFLAGS=-DTEST_NO_NS run-testtime`来测试你的时间代码。你会看到环境从 5 开始数每秒减 1。"-DTEST_NO_NS"是用来取消开启网络服务环境的，因为它会此时会 panic。
 
 ### The Network Interface Card
 
