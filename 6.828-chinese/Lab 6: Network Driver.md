@@ -103,7 +103,50 @@ Even though it may seem that the IPC dispatchers of the file server and network 
 
 ### The Network Interface Card
 
+Writing a driver requires knowing in depth the hardware and the interface presented to the software. The lab text will provide a high-level overview of how to interface with the E1000, but you'll need to make extensive use of Intel's manual while writing your driver.
+
+练习 2：熟悉 E1000，浏览 Intel 的[软件开发者手册](https://pdos.csail.mit.edu/6.828/2018/readings/hardware/8254x_GBe_SDM.pdf)。这个手册覆盖了一些非常相关的以太网控制器。QEMU 模拟了 82540EM。
+
+你应该大致浏览第 2 章，找到对该设备的感觉。为了写你的驱动，你需要熟悉第 3、14 章，以及 4.1。你也需要参考第 13 章。其他章节也覆盖了一些你的驱动不会互动的 E1000 的组件。不要太在意细节，现在只要知道文档的结构，等需要的时候知道在哪儿找，就行了。
+
+当你读这个手册等时候，记住 E1000 是非一个非常复杂的设备，它有很多高级功能。一个能工作的 E1000 驱动只需要 NIC 提供的功能和接口的一小部分。仔细考虑最简单的办法来使用这个网卡。我们强烈推荐你先弄出一个能基本工作，再去弄那些高级功能。
+
 #### PCI Interface
+
+E1000 是一个 PCI 设备，意味着它可以插入主板的 PCI 总线上。PCI 总线有数据线、地址线和中断线，它允许 CPU 和 PCI 设备通信以及允许 PCI 设备去读写内存。一个 PCI 在使用之前需要先被发现以及初始化。发现过程是遍历 PCI 总线来查看附属的设备。初始化过程是申请 I/O 和内存空间以及协调设备使用的 IRQ 线。
+
+我们已经在`kern/pci.c`里给你提供了 PCI 代码。为了在 boot 时进行 PCI 初始化，PCI 代码遍历 PCI 总线来发现设备。当它发现了一个设备，它读取设备的厂商 ID 和设备 ID，并用这两个值作为 key 来查找`pci_attach_vendor`数组。这个数组由`struct pci_driver`项组成：
+
+```c
+struct pci_driver {
+    uint32_t key1, key2;
+    int (*attachfn) (struct pci_func *pcif);
+};
+```
+
+如果被发现的设备厂商 ID 和设备 ID 匹配了数组里的一个项，PCI 代码会调用该项的`attachfn`来进行设备初始化。（设备也可以用 class 来确认，这就是`kern/pci.c`里其他驱动表的作用。）
+
+The attach function is passed a PCI function to initialize. A PCI card can expose multiple functions, though the E1000 exposes only one. Here is how we represent a PCI function in JOS:
+
+```c
+struct pci_func {
+    struct pci_bus *bus;
+
+    uint32_t dev;
+    uint32_t func;
+
+    uint32_t dev_id;
+    uint32_t dev_class;
+
+    uint32_t reg_base[6];
+    uint32_t reg_size[6];
+    uint8_t irq_line;
+};
+```
+
+以上的结构体反映了一些在开发者手册里 4-1 表格里的项。struct pci_func 的最后三项我们特别感兴趣，因为它们记录了协调后的内存，I/O，设备的中断资源。reg_base 和 reg_size 数组包含了多达六个 Base Address Registers or BARs 的信息。reg_base 存储了 memory-mapped I/O 区域的内存基址，reg_size 包含了对应的 reg_baseI/O 端口基础值（reg_base）的字节数（或数字），irq_line 包含了给设备中断使用的 IRQ 线。E1000 BARs 的特定含义在表 4-2 的后半部分给出。
+
+When the attach function of a device is called, the device has been found but not yet enabled. This means that the PCI code has not yet determined the resources allocated to the device, such as address space and an IRQ line, and, thus, the last three elements of the struct pci_func structure are not yet filled in. The attach function should call pci_func_enable, which will enable the device, negotiate these resources, and fill in the struct pci_func.
 
 #### Memory-mapped I/O
 
@@ -122,3 +165,7 @@ Even though it may seem that the IPC dispatchers of the file server and network 
 ### Receiving Packets: Network Server
 
 ### The Web Server
+
+```
+
+```
