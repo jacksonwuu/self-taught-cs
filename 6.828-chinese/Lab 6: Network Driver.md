@@ -126,7 +126,7 @@ struct pci_driver {
 
 如果被发现的设备厂商 ID 和设备 ID 匹配了数组里的一个项，PCI 代码会调用该项的`attachfn`来进行设备初始化。（设备也可以用 class 来确认，这就是`kern/pci.c`里其他驱动表的作用。）
 
-The attach function is passed a PCI function to initialize. A PCI card can expose multiple functions, though the E1000 exposes only one. Here is how we represent a PCI function in JOS:
+那个`attachfn`传递一个 PCI 函数去初始化。一个 PCI 卡可以暴露多个函数，即使 E1000 只暴露了一个。这就是我们如何在 JOS 里表示 PCI 函数的：
 
 ```c
 struct pci_func {
@@ -144,9 +144,17 @@ struct pci_func {
 };
 ```
 
-以上的结构体反映了一些在开发者手册里 4-1 表格里的项。struct pci_func 的最后三项我们特别感兴趣，因为它们记录了协调后的内存，I/O，设备的中断资源。reg_base 和 reg_size 数组包含了多达六个 Base Address Registers or BARs 的信息。reg_base 存储了 memory-mapped I/O 区域的内存基址，reg_size 包含了对应的 reg_baseI/O 端口基础值（reg_base）的字节数（或数字），irq_line 包含了给设备中断使用的 IRQ 线。E1000 BARs 的特定含义在表 4-2 的后半部分给出。
+以上的结构体反映了一些在开发者手册里 4-1 表格里的项。struct pci_func 的最后三项我们特别感兴趣，因为它们记录了协调后的内存，I/O，设备的中断资源。reg_base 和 reg_size 数组包含了多达六个 Base Address Registers or BARs 的信息。reg_base 存储了 memory-mapped I/O 区域的内存基址，reg_size 包含了对应的 reg_baseI/O 端口基础值（reg_base）的字节数（或数字），irq_line 包含了给设备中断分配的 IRQ 线。E1000 BARs 的特定含义在表 4-2 的后半部分给出。
 
-When the attach function of a device is called, the device has been found but not yet enabled. This means that the PCI code has not yet determined the resources allocated to the device, such as address space and an IRQ line, and, thus, the last three elements of the struct pci_func structure are not yet filled in. The attach function should call pci_func_enable, which will enable the device, negotiate these resources, and fill in the struct pci_func.
+当这个设备的`attachfn`被调用，设备就被发现了，但是还没有被启用。这就意味着 PCI 代码还没有决定要分配哪些资源给设备，比如说地址空间、IRQ 线，也就是 struct pci_func 的最后三个元素还没有被填充。`attachfn`应该调用`pci_func_enable`，它会启用该设备，协调这些资源，并且填充`struct pci_func`。
+
+练习 3：实现一个初始化 E1000 的`attachfn`。添加一个项到`kern/pci.c`的`pci_attach_vendor`数组里，用它来触发你的函数（一旦匹配中的 PCI 设备被发现了），确保在标记表末的{0,0,0}项之前把它添加进去。你可以在小结 5.2 里找到 QEMU 模拟的 82540EM 的厂商 ID 和设备 ID。你也应该在 JOS 扫描 PCI 总线时查看这个清单。
+
+到现在，通过 pci_func_enable 来开启 E1000 设备。本实验的后面，我们会添加更多初始化功能进去。
+
+我们已经提供了 kern/e1000.c 和 kern/e1000.h 给你，所以你不需要弄乱构建系统。它们现在是空白的；你在这个练习里需要去填充它们。你可能也需要在内核的其他地方 include e1000.h。
+
+当你 boot 你的内核时，你应该看到它打印了，E1000 网卡的 PCI 函数被开启了。
 
 #### Memory-mapped I/O
 
