@@ -297,39 +297,39 @@ reading from file qemu.pcap, link-type EN10MB (Ethernet)
 
 ### Receiving Packets
 
-Just like you did for transmitting packets, you'll have to configure the E1000 to receive packets and provide a receive descriptor queue and receive descriptors. Section 3.2 describes how packet reception works, including the receive queue structure and receive descriptors, and the initialization process is detailed in section 14.4.
+就像你为发送信息包做的事情一样，你必须配置 E1000 来接收信息包，并提供一个接收描述符队列和接收描述符。3.2 节描述了数据包接收的工作原理，包括接收队列结构和接收描述符，初始化过程在 14.4 节详细介绍。
 
-Exercise 9. Read section 3.2. You can ignore anything about interrupts and checksum offloading (you can return to these sections if you decide to use these features later), and you don't have to be concerned with the details of thresholds and how the card's internal caches work.
+练习 9：阅读 3.2 节。您可以忽略任何关于中断和校验和卸载的内容(如果您决定稍后使用这些特性，您可以回头来看这些部分)，而且你没必要关心阈值的细节以及卡的内部缓存如何工作。
 
-The receive queue is very similar to the transmit queue, except that it consists of empty packet buffers waiting to be filled with incoming packets. Hence, when the network is idle, the transmit queue is empty (because all packets have been sent), but the receive queue is full (of empty packet buffers).
+接收队列非常类似于发送队列，除了它由等着被传入的数据包填充的空数据包缓冲区组成。因此当网络空闲时，发送队列是空的（因为所有的包都已经发送了），但接收队列是满的（空的包缓冲区）。
 
-When the E1000 receives a packet, it first checks if it matches the card's configured filters (for example, to see if the packet is addressed to this E1000's MAC address) and ignores the packet if it doesn't match any filters. Otherwise, the E1000 tries to retrieve the next receive descriptor from the head of the receive queue. If the head (RDH) has caught up with the tail (RDT), then the receive queue is out of free descriptors, so the card drops the packet. If there is a free receive descriptor, it copies the packet data into the buffer pointed to by the descriptor, sets the descriptor's DD (Descriptor Done) and EOP (End of Packet) status bits, and increments the RDH.
+当 E1000 接收到一个数据包时，它首先检查数据包是否与网卡配置的过滤器匹配(例如，查看数据包是否指向这个 E1000 的 MAC 地址)，如果没有匹配任何过滤器，则忽略数据包。否则，E1000 将尝试从接收队列的头部检索下一个接收描述符。如果头(RDH)赶上尾(RDT)，则接收队列空闲描述符不足，因此网卡丢弃包。如果有一个空闲的接收描述符，它将数据包数据复制到描述符指向的缓冲区中，设置描述符的 DD(描述符完成)和 EOP(包结束)状态位，并增加 RDH。
 
-If the E1000 receives a packet that is larger than the packet buffer in one receive descriptor, it will retrieve as many descriptors as necessary from the receive queue to store the entire contents of the packet. To indicate that this has happened, it will set the DD status bit on all of these descriptors, but only set the EOP status bit on the last of these descriptors. You can either deal with this possibility in your driver, or simply configure the card to not accept "long packets" (also known as jumbo frames) and make sure your receive buffers are large enough to store the largest possible standard Ethernet packet (1518 bytes).
+如果 E1000 在一个接收描述符中接收到一个大于包缓冲区的包，它将根据需要从接收队列中检索尽可能多的描述符来存储包的全部内容。为了表明这已经发生，它将在所有这些描述符上设置 DD 状态位，但只在这些描述符的最后一个上设置 EOP 状态位。您可以在您的驱动程序中处理这种可能性，或者简单地配置卡不接受“长数据包”(也称为巨型帧)，并确保您的接收缓冲区足够大，以存储最大的标准以太网数据包(1518 字节)。
 
-Exercise 10. Set up the receive queue and configure the E1000 by following the process in section 14.4. You don't have to support "long packets" or multicast. For now, don't configure the card to use interrupts; you can change that later if you decide to use receive interrupts. Also, configure the E1000 to strip the Ethernet CRC, since the grade script expects it to be stripped.
+练习 10：按照 14.4 小节的流程设置接收队列并配置 E1000。您不必支持“长包”或多播。现在，不要配置卡使用中断；如果决定使用接收中断，可以稍后更改。此外，配置 E1000 剥离以太网 CRC，因为打分脚本预期它将被剥离。
 
-By default, the card will filter out all packets. You have to configure the Receive Address Registers (RAL and RAH) with the card's own MAC address in order to accept packets addressed to that card. You can simply hard-code QEMU's default MAC address of 52:54:00:12:34:56 (we already hard-code this in lwIP, so doing it here too doesn't make things any worse). Be very careful with the byte order; MAC addresses are written from lowest-order byte to highest-order byte, so 52:54:00:12 are the low-order 32 bits of the MAC address and 34:56 are the high-order 16 bits.
+默认情况下，该网卡将过滤掉所有报文。您必须使用网卡自己的 MAC 地址配置接收地址寄存器(RAL 和 RAH)，以便接受发往该网卡的包。您可以简单地硬编码 QEMU 的默认 MAC 地址 52:54:00:12:34:56(我们已经在 lwIP 中硬编码了这个地址，所以在这里也这样做不会让事情变得更糟)。要非常注意字节顺序；MAC 地址是从最低序字节写到最高序字节的，所以 52:54:00:12 是 MAC 地址的低序 32 位，34:56 是高序 16 位。
 
-The E1000 only supports a specific set of receive buffer sizes (given in the description of RCTL.BSIZE in 13.4.22). If you make your receive packet buffers large enough and disable long packets, you won't have to worry about packets spanning multiple receive buffers. Also, remember that, just like for transmit, the receive queue and the packet buffers must be contiguous in physical memory.
+E1000 只支持一组特定的接收缓冲区大小(在 RCTL 的描述中给出。BSIZE 13.4.22)。如果您使您的接收包缓冲区足够大，并禁用长数据包，您就不必担心跨越多个接收缓冲区的数据包。另外请记住，就像传输一样，接收队列和包缓冲区在物理内存中必须是连续的。
 
-You should use at least 128 receive descriptors
+您应该使用至少 128 个接收描述符。
 
-You can do a basic test of receive functionality now, even without writing the code to receive packets. Run make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput. testinput will transmit an ARP (Address Resolution Protocol) announcement packet (using your packet transmitting system call), which QEMU will automatically reply to. Even though your driver can't receive this reply yet, you should see a "e1000: unicast match[0]: 52:54:00:12:34:56" message, indicating that a packet was received by the E1000 and matched the configured receive filter. If you see a "e1000: unicast mismatch: 52:54:00:12:34:56" message instead, the E1000 filtered out the packet, which means you probably didn't configure RAL and RAH correctly. Make sure you got the byte ordering right and didn't forget to set the "Address Valid" bit in RAH. If you don't get any "e1000" messages, you probably didn't enable receive correctly.
+您现在可以对接收功能进行基本的测试，甚至不需要编写接收数据包的代码。执行命令 `make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput`。testinput 将发送一个 ARP(地址解析协议)通知包(使用您的包传输系统调用)，QEMU 将自动响应。即使你的驱动还不能收到这个回复，你应该看到一个“e1000: unicast match[0]: 52:54:00:12:34:56”的消息，表明一个包被 e1000 接收并且匹配配置的接收过滤器。如果您看到的是“e1000: unicast mismatch: 52:54:00:12:34:56”消息，则 e1000 过滤了数据包，这意味着您可能没有正确配置 RAL 和 RAH。确保字节顺序正确，不要忘记设置 RAH 中的“Address Valid”位。如果您没有收到任何“e1000”消息，您可能没有正确启用 receive。
 
-Now you're ready to implement receiving packets. To receive a packet, your driver will have to keep track of which descriptor it expects to hold the next received packet (hint: depending on your design, there's probably already a register in the E1000 keeping track of this). Similar to transmit, the documentation states that the RDH register cannot be reliably read from software, so in order to determine if a packet has been delivered to this descriptor's packet buffer, you'll have to read the DD status bit in the descriptor. If the DD bit is set, you can copy the packet data out of that descriptor's packet buffer and then tell the card that the descriptor is free by updating the queue's tail index, RDT.
+现在您已经准备好实现接收数据包了。要接收一个包，你的驱动程序必须跟踪它希望下一个保存接收数据包的描述符(提示:取决你的设计，可能在 E1000 中已经有一个寄存器记录这个)。与发送数据类似，文档声明了 RDH 寄存器不能从软件中可靠地读取，所以为了确定一个包是否已经被发送到描述符的包缓冲区，你必须读取描述符中的 DD 状态位。如果设置了 DD 位，您可以从描述符的包缓冲区中复制包数据，然后通过更新队列的尾部索引 RDT，来告诉网卡描述符是空闲的。
 
-If the DD bit isn't set, then no packet has been received. This is the receive-side equivalent of when the transmit queue was full, and there are several things you can do in this situation. You can simply return a "try again" error and require the caller to retry. While this approach works well for full transmit queues because that's a transient condition, it is less justifiable for empty receive queues because the receive queue may remain empty for long stretches of time. A second approach is to suspend the calling environment until there are packets in the receive queue to process. This tactic is very similar to sys_ipc_recv. Just like in the IPC case, since we have only one kernel stack per CPU, as soon as we leave the kernel the state on the stack will be lost. We need to set a flag indicating that an environment has been suspended by receive queue underflow and record the system call arguments. The drawback of this approach is complexity: the E1000 must be instructed to generate receive interrupts and the driver must handle them in order to resume the environment blocked waiting for a packet.
+如果没有设置 DD 位，则没有收到报文。在发送端，这是和发送队列满时等效的，在这种情况下可以做几件事。您可以简单地返回一个“重试”错误，并要求调用者重试。虽然这种方法适用于完整的传输队列，因为这是一种瞬态条件，但它不适用于空的接收队列，因为接收队列可能会在很长一段时间内保持空状态。第二种方法是挂起调用环境，直到接收队列中有需要处理的包。这个策略与 sys_ipc_recv 非常相似。就像在 IPC 的情况下，因为每个 CPU 只有一个内核堆栈，所以一旦我们离开内核，堆栈上的状态就会丢失。我们需要设置一个标志，指示一个环境已被接收队列下流挂起，并记录系统调用参数。这种方法的缺点是复杂性：E1000 必须被指示生成接收中断，驱动程序必须处理这些中断，以便恢复等待数据包时阻塞的环境。
 
-Exercise 11. Write a function to receive a packet from the E1000 and expose it to user space by adding a system call. Make sure you handle the receive queue being empty.
+练习 11：编写一个函数来接收来自 E1000 的包，并通过添加一个系统调用将其暴露给用户空间。确保您处理的接收队列为空。
 
 ### Receiving Packets: Network Server
 
-In the network server input environment, you will need to use your new receive system call to receive packets and pass them to the core network server environment using the NSREQ_INPUT IPC message. These IPC input message should have a page attached with a union Nsipc with its struct jif_pkt pkt field filled in with the packet received from the network.
+在网络服务器输入环境中，您需要使用新的接收系统调用来接收数据包，并使用 NSREQ_INPUT IPC 消息将它们传递到核心网络服务器环境。这些 IPC 输入消息应该有一个带有 union Nsipc 的页面，其结构体 jif_pkt 的 pkt 字段填充了从网络接收到的数据包。
 
-Exercise 12. Implement net/input.c.
+练习 12：实现 net/input.c。
 
-Run testinput again with make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput. You should see
+再次运行 testinput 命令 `make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput`。您应该看到：
 
 ```
 Sending ARP announcement...
@@ -344,9 +344,9 @@ input: 0030   0000 0000 0000 0000  0000 0000 0000 0000
 
 The lines beginning with "input:" are a hexdump of QEMU's ARP reply.
 
-Your code should pass the testinput tests of make grade. Note that there's no way to test packet receiving without sending at least one ARP packet to inform QEMU of JOS' IP address, so bugs in your transmitting code can cause this test to fail.
+你的代码应该通过 make grade 的 testinput 测试。请注意，如果不发送至少一个 ARP 包来通知 QEMU JOS 的 IP 地址，就无法测试数据包接收，所以发送代码中的错误可能会导致测试失败。
 
-To more thoroughly test your networking code, we have provided a daemon called echosrv that sets up an echo server running on port 7 that will echo back anything sent over a TCP connection. Use make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-echosrv to start the echo server in one terminal and make nc-7 in another to connect to it. Every line you type should be echoed back by the server. Every time the emulated E1000 receives a packet, QEMU should print something like the following to the console:
+为了更彻底地测试您的网络代码，我们提供了一个名为 echosrv 的守护进程，它设置了一个在端口 7 上运行的 echo 服务器，该服务器将 echo back 通过 TCP 连接发送的任何内容。使用 `make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-echosrv` 在一个终端上启动 echo 服务器，并在另一个终端上`make nc-7` 连接到它。您键入的每一行都应该由服务器 echo back。每次模拟 E1000 接收到一个数据包，QEMU 应该打印如下内容到控制台:
 
 ```
 e1000: unicast match[0]: 52:54:00:12:34:56
@@ -355,21 +355,19 @@ e1000: index 3: 0x26f06a : 9000039 0
 e1000: unicast match[0]: 52:54:00:12:34:56
 ```
 
-At this point, you should also be able to pass the echosrv test.
+此时，您还应该能够通过 echosrv 测试。
 
-Question 2: How did you structure your receive implementation? In particular, what do you do if the receive queue is empty and a user environment requests the next incoming packet?
+问题 2：您如何组织接收实现？特别是，如果接收队列为空且用户环境请求下一个传入数据包，该怎么办?
 
 ### The Web Server
 
-A web server in its simplest form sends the contents of a file to the requesting client. We have provided skeleton code for a very simple web server in user/httpd.c. The skeleton code deals with incoming connections and parses the headers.
+web 服务器以其最简单的形式将文件内容发送给请求的客户端。我们已经在 `user/httpd.c` 中为一个非常简单的 web 服务器提供了框架代码。框架代码处理传入的连接并解析头信息。
 
-Exercise 13. The web server is missing the code that deals with sending the contents of a file back to the client. Finish the web server by implementing send_file and send_data.
+练习 13：web 服务器缺少处理将文件内容发送回客户端的代码。通过实现 send_file 和 send_data 来完成 web 服务器。
 
-Once you've finished the web server, start the webserver (make run-httpd-nox) and point your favorite browser at http://host:port/index.html, where host is the name of the computer running QEMU (If you're running QEMU on athena use hostname.mit.edu (hostname is the output of the hostname command on athena, or localhost if you're running the web browser and QEMU on the same computer) and port is the port number reported for the web server by make which-ports . You should see a web page served by the HTTP server running inside JOS.
+一旦你完成了 web 服务器，启动网络服务器(`make run-httpd-nox`)，让你最喜欢的浏览器指向 `http://host:port/index.html`，主机是电脑运行 QEMU 的名字(如果你在 athena 使用 hostname.mit.edu 上运行 QEMU，主机名是在 athena 上 hostname 命令的输出，或者 localhost（如果你在同一台计算机上运行 web 浏览器和 QEMU），port 是由 `make which-ports` 为 web 服务器报告的端口号。您应该会看到一个由运行在 JOS 中的 HTTP 服务器提供的 web 页面。
 
-At this point, you should score 105/105 on make grade.
+此时，如果你运行`make grade`，你应该拿到了 105/105 分。
 
-Question 3: What does the web page served by JOS's web server say?
-Question 4: How long approximately did it take you to do this lab?
-
-This completes the lab. As usual, don't forget to run make grade and to write up your answers and a description of your challenge exercise solution. Before handing in, use git status and git diff to examine your changes and don't forget to git add answers-lab6.txt. When you're ready, commit your changes with git commit -am 'my solutions to lab 6', then make handin and follow the directions.
+问题 3: JOS 的 web 服务器提供的网页内容是什么?
+问题 4: 你做这个实验大概花了多长时间?
