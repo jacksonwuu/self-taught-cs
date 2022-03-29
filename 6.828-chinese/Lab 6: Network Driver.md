@@ -103,7 +103,7 @@ Even though it may seem that the IPC dispatchers of the file server and network 
 
 ### The Network Interface Card
 
-Writing a driver requires knowing in depth the hardware and the interface presented to the software. The lab text will provide a high-level overview of how to interface with the E1000, but you'll need to make extensive use of Intel's manual while writing your driver.
+写一个驱动程序需要对硬件有很深的认识，以及用硬件在软件的表现。这个实验的说明会提供关于如何和 E1000 接口协作的高度概览，但是当你写驱动程序的时候，你也要看额外再看一下 Intel 手册。
 
 练习 2：熟悉 E1000，浏览 Intel 的[软件开发者手册](https://pdos.csail.mit.edu/6.828/2018/readings/hardware/8254x_GBe_SDM.pdf)。这个手册覆盖了一些非常相关的以太网控制器。QEMU 模拟了 82540EM。
 
@@ -182,15 +182,15 @@ struct pci_func {
 
 ### Transmitting Packets
 
-The transmit and receive functions of the E1000 are basically independent of each other, so we can work on one at a time. We'll attack transmitting packets first simply because we can't test receive without transmitting an "I'm here!" packet first.
+E1000 的发送和接收功能基本上是独立的，所以我们可以一次做一个。我们首先做发送数据包，因为如果不先发送一个“我在这里”的数据包，那我们就没法测试接收。
 
-First, you'll have to initialize the card to transmit, following the steps described in section 14.5 (you don't have to worry about the subsections). The first step of transmit initialization is setting up the transmit queue. The precise structure of the queue is described in section 3.4 and the structure of the descriptors is described in section 3.3.3. We won't be using the TCP offload features of the E1000, so you can focus on the "legacy transmit descriptor format." You should read those sections now and familiarize yourself with these structures.
+首先，你必须按照 14.5 节中描述的步骤来初始化网卡发送功能。发送初始化的第一步是设置发送队列。队列的精确结构在 3.4 节中有描述，描述符的结构在 3.3.3 节中有描述。我们不会使用 E1000 的 TCP offload 特性，所以你可以专注于把重点放在“传统的传输描述符格式（legacy transmit descriptor format）”上。现在你应该阅读这些部分，熟悉这些结构。
 
 #### C Structures
 
-You'll find it convenient to use C structs to describe the E1000's structures. As you've seen with structures like the struct Trapframe, C structs let you precisely layout data in memory. C can insert padding between fields, but the E1000's structures are laid out such that this shouldn't be a problem. If you do encounter field alignment problems, look into GCC's "packed" attribute.
+你会发现使用 C 结构体描述 E1000 的结构非常方便。正如你已经看到的结构，如结构 Trapframe，C 结构让你精确地在内存中布局数据。C 可以在字段之间插入填充来对齐，但是 E1000 的结构是这样布置的，内存对齐这个应该不是一个问题。如果您确实遇到了字段对齐问题，请查看 GCC 的“packed”属性。
 
-As an example, consider the legacy transmit descriptor given in table 3-8 of the manual and reproduced here:
+作为一个例子，看看手册表里 3-8 中给出的旧的传输描述符:
 
 ```
   63            48 47   40 39   32 31   24 23   16 15             0
@@ -201,7 +201,7 @@ As an example, consider the legacy transmit descriptor given in table 3-8 of the
   +---------------+-------+-------+-------+-------+---------------+
 ```
 
-The first byte of the structure starts at the top right, so to convert this into a C struct, read from right to left, top to bottom. If you squint at it right, you'll see that all of the fields even fit nicely into a standard-size types:
+结构体的第一个字节从左上角开始，所以先把这个转化为 C 结构体，从右边读取到左边，从顶部到底部。如果你仔细看，你会发现，所有的字段都很适合标准大小的类型。
 
 ```c
 struct tx_desc
@@ -216,39 +216,42 @@ struct tx_desc
 };
 ```
 
-Your driver will have to reserve memory for the transmit descriptor array and the packet buffers pointed to by the transmit descriptors. There are several ways to do this, ranging from dynamically allocating pages to simply declaring them in global variables. Whatever you choose, keep in mind that the E1000 accesses physical memory directly, which means any buffer it accesses must be contiguous in physical memory.
+你的驱动程序必须为发送描述符数组和指向发送描述符的包缓冲区预留内存。有几种方法你可以做到这一点，从动态分配页面到简单地在全局变量中声明它们。不管你选择的是哪一种，请记住，E1000 直接访问物理内存，这意味着它访问的任何缓冲区都必须是连续的物理内存。
 
-There are also multiple ways to handle the packet buffers. The simplest, which we recommend starting with, is to reserve space for a packet buffer for each descriptor during driver initialization and simply copy packet data into and out of these pre-allocated buffers. The maximum size of an Ethernet packet is 1518 bytes, which bounds how big these buffers need to be. More sophisticated drivers could dynamically allocate packet buffers (e.g., to reduce memory overhead when network usage is low) or even pass buffers directly provided by user space (a technique known as "zero copy"), but it's good to start simple.
+还有多种方法可以处理数据包缓冲。我们建议从最简单的开始，即在驱动程序初始化期间为每个描述符预留一个包缓冲区的空间，并将包数据复制到这些预分配的缓冲区中或从这些缓冲区中取出。以太网数据包的最大大小是 1518 字节，这可以拿来限定这些缓冲区需要的大小。更复杂的驱动程序可以动态分配包缓冲区（比如说在网络使用率低的时候减少内存开销），甚至传递由用户空间直接提供的缓冲区（一种称为“零拷贝”的技术），但是我们最好先从简单的开始。
 
-Exercise 5. Perform the initialization steps described in section 14.5 (but not its subsections). Use section 13 as a reference for the registers the initialization process refers to and sections 3.3.3 and 3.4 for reference to the transmit descriptors and transmit descriptor array.
+练习 5：执行第 14.5 节(但不是它的子节)中描述的初始化步骤。使用第 13 节作为寄存器的参考，初始化过程引用寄存器，第 3.3.3 和 3.4 节引用发送描述符和发送描述符数组。
 
-Be mindful of the alignment requirements on the transmit descriptor array and the restrictions on length of this array. Since TDLEN must be 128-byte aligned and each transmit descriptor is 16 bytes, your transmit descriptor array will need some multiple of 8 transmit descriptors. However, don't use more than 64 descriptors or our tests won't be able to test transmit ring overflow.
+请注意发送描述符数组的对齐要求和该数组的长度限制。由于 TDLEN 必须是 128 字节对齐的，并且每个发送描述符都是 16 字节，所以您的发送描述符数组将需要 8 倍的发送描述符空间。但是，不要使用超过 64 个描述符，否则我们的测试将无法测试发送环溢出。
 
-For the TCTL.COLD, you can assume full-duplex operation. For TIPG, refer to the default values described in table 13-77 of section 13.4.34 for the IEEE 802.3 standard IPG (don't use the values in the table in section 14.5).
+对于 TCTL.COLD，你可以假设全双工操作。对于 TIPG，请参考 IEEE 802.3 标准 IPG 中的 13.4.34 节，表 13-77 中描述的默认值（不要使用 14.5 节表中的值）。
 
-Try running make E1000_DEBUG=TXERR,TX qemu. If you are using the course qemu, you should see an "e1000: tx disabled" message when you set the TDT register (since this happens before you set TCTL.EN) and no further "e1000" messages.
+尝试运行`make E1000_DEBUG=TXERR,TX qemu`。If you are using the course qemu, you should see an "e1000: tx disabled" message when you set the TDT register (since this happens before you set TCTL.EN) and no further "e1000" messages.
 
-Now that transmit is initialized, you'll have to write the code to transmit a packet and make it accessible to user space via a system call. To transmit a packet, you have to add it to the tail of the transmit queue, which means copying the packet data into the next packet buffer and then updating the TDT (transmit descriptor tail) register to inform the card that there's another packet in the transmit queue. (Note that TDT is an index into the transmit descriptor array, not a byte offset; the documentation isn't very clear about this.)
+现在，发送功能已经初始化了，你必须编写代码来发送一个包，并通过系统调用让用户空间可以访问它。要发送一个包，你需要把它添加到发送队列的末尾，这意味着将数据包数据复制到下一个数据包缓冲区，然后更新 TDT(发送描述符尾部)寄存器，以通知网卡在发送队列中有另一个数据包。(注意 TDT 是发送描述符数组的索引，而不是字节偏移量；文档对此并不是写地很清楚。)
 
-However, the transmit queue is only so big. What happens if the card has fallen behind transmitting packets and the transmit queue is full? In order to detect this condition, you'll need some feedback from the E1000. Unfortunately, you can't just use the TDH (transmit descriptor head) register; the documentation explicitly states that reading this register from software is unreliable. However, if you set the RS bit in the command field of a transmit descriptor, then, when the card has transmitted the packet in that descriptor, the card will set the DD bit in the status field of the descriptor. If a descriptor's DD bit is set, you know it's safe to recycle that descriptor and use it to transmit another packet.
+然而，发送队列只有这么大。如果网卡落后于传输包，且传输队列已满，会发生什么？为了检测这个条件，您需要 E1000 提供一些反馈。不幸的是，你不能只使用 TDH(发送描述符头)寄存器；文档明确指出，从软件读取这个寄存器是不可靠的。然而，如果您在传输描述符的命令字段中设置 RS 位，那么，当网卡在该描述符中传输了数据包时，网卡将在描述符的状态字段中设置 DD 位。如果设置了描述符的 DD 位，那么就可以安全地回收该描述符并使用它来传输另一个包。
 
-What if the user calls your transmit system call, but the DD bit of the next descriptor isn't set, indicating that the transmit queue is full? You'll have to decide what to do in this situation. You could simply drop the packet. Network protocols are resilient to this, but if you drop a large burst of packets, the protocol may not recover. You could instead tell the user environment that it has to retry, much like you did for sys_ipc_try_send. This has the advantage of pushing back on the environment generating the data.
+如果用户调用了您的传输系统调用，但是下一个描述符的 DD 位没有设置，表明传输队列已满，该怎么办?在这种情况下，你必须决定怎么做。你可以直接扔掉这个包裹。网络协议对此很有弹性，但如果您丢弃了大量的数据包，协议可能无法恢复。相反，您可以告诉用户环境必须重试，就像您对 sys_ipc_try_send 所做的那样。这样做的好处是可以推迟生成数据的环境（进程）。
 
-Exercise 6. Write a function to transmit a packet by checking that the next descriptor is free, copying the packet data into the next descriptor, and updating TDT. Make sure you handle the transmit queue being full.
+练习 6：编写一个函数，通过检查下一个描述符是否空闲，将包数据复制到下一个描述符，并更新 TDT 来传输包。确保传输队列已满。
 
-Now would be a good time to test your packet transmit code. Try transmitting just a few packets by directly calling your transmit function from the kernel. You don't have to create packets that conform to any particular network protocol in order to test this. Run make E1000_DEBUG=TXERR,TX qemu to run your test. You should see something like
+现在是测试数据包传输代码的好时机。通过直接从内核调用传输函数，尝试只传输几个包。您不必为了测试这一点而创建符合任何特定网络协议的数据包。运行`make E1000_DEBUG=TXERR,TX qemu`运行测试。你应该看到
 
+```
 e1000: index 0: 0x271f00 : 9000002a 0
 ...
-as you transmit packets. Each line gives the index in the transmit array, the buffer address of that transmit descriptor, the cmd/CSO/length fields, and the special/CSS/status fields. If QEMU doesn't print the values you expected from your transmit descriptor, check that you're filling in the right descriptor and that you configured TDBAL and TDBAH correctly. If you get "e1000: TDH wraparound @0, TDT x, TDLEN y" messages, that means the E1000 ran all the way through the transmit queue without stopping (if QEMU didn't check this, it would enter an infinite loop), which probably means you aren't manipulating TDT correctly. If you get lots of "e1000: tx disabled" messages, then you didn't set the transmit control register right.
+```
 
-Once QEMU runs, you can then run tcpdump -XXnr qemu.pcap to see the packet data that you transmitted. If you saw the expected "e1000: index" messages from QEMU, but your packet capture is empty, double check that you filled in every necessary field and bit in your transmit descriptors (the E1000 probably went through your transmit descriptors, but didn't think it had to send anything).
+当你传输数据包时。每一行都给出了发送数组中的索引、该发送描述符的缓存地址、cmd/CSO/length 字段，special/CSS/status 字段。如果 QEMU 没有打印您希望从传输描述符中得到的值，请检查您是否填写了正确的描述符，以及是否正确配置了 TDBAL 和 TDBAH。如果你得到了“e1000: TDH wraparound @0, TDT x, TDLEN y”这样的消息，那就意味着 E1000 一直运行在发送队列中而没有停止（如果 QEMU 没有检查这个，它将进入一个无限循环），这可能意味着您没有正确地操作 TDT。如果你得到大量的“e1000: tx disabled”消息，那么你没有设置对发送控制寄存器。
 
-Exercise 7. Add a system call that lets you transmit packets from user space. The exact interface is up to you. Don't forget to check any pointers passed to the kernel from user space.
+一旦 QEMU 运行，您就可以运行`tcpdump -XXnr QEMU`。Pcap 查看你传输的数据包数据。如果您看到预期的“e1000: index”消息来自 QEMU，但是您的包捕获是空的，请仔细检查您是否在发送描述符中填写了所有必要的字段和位(e1000 可能检查了您的发送描述符，但不认为它必须发送任何东西)。
+
+练习 7：添加一个允许您从用户空间传输数据包的系统调用。具体的接口由您决定。不要忘记检查从用户空间传递到内核的指针。
 
 ### Transmitting Packets: Network Server
 
-Now that you have a system call interface to the transmit side of your device driver, it's time to send packets. The output helper environment's goal is to do the following in a loop: accept NSREQ_OUTPUT IPC messages from the core network server and send the packets accompanying these IPC message to the network device driver using the system call you added above. The NSREQ_OUTPUT IPC's are sent by the low_level_output function in net/lwip/jos/jif/jif.c, which glues the lwIP stack to JOS's network system. Each IPC will include a page consisting of a union Nsipc with the packet in its struct jif_pkt pkt field (see inc/ns.h). struct jif_pkt looks like
+现在已经有了设备驱动程序的传输侧的系统调用接口，是时候该发送包了。输出助手环境的目标是循环执行以下操作：接受来自核心网络服务器的 NSREQ_OUTPUT IPC 消息，并使用上面添加的系统调用，并将包伴随这这些 IPC 消息发送到网络设备驱动程序。NSREQ_OUTPUT IPC 是由 net/lwip/jos/jif/jif.c 中的 low_level_output 函数发送的，它将 lwIP 堆栈粘到 JOS 的网络系统上。每个 IPC 会包括进一个页，这个页由一个 Nsipc 的 union 和它的结构 jif_pkt pkt 字段中的包组成(参见 inc/ns.h)。结构 jif_pkt 看起来是这样的：
 
 ```c
 struct jif_pkt {
@@ -257,37 +260,116 @@ struct jif_pkt {
 };
 ```
 
-jp_len represents the length of the packet. All subsequent bytes on the IPC page are dedicated to the packet contents. Using a zero-length array like jp_data at the end of a struct is a common C trick (some would say abomination) for representing buffers without pre-determined lengths. Since C doesn't do array bounds checking, as long as you ensure there's enough unused memory following the struct, you can use jp_data as if it were an array of any size.
+jp_len 表示数据包的长度。IPC 页上的所有后续字节都专用于包的内容。在结构的末尾使用 jp_data 这样的零长度数组是一个常见的 C 技巧(有些人会说讨厌)，用于表示没有预先确定长度的缓冲区。由于 C 语言不做数组边界检查，只要确保 struct 后面有足够的未使用内存，就可以像使用任意大小的数组一样使用 jp_data。
 
-Be aware of the interaction between the device driver, the output environment and the core network server when there is no more space in the device driver's transmit queue. The core network server sends packets to the output environment using IPC. If the output environment is suspended due to a send packet system call because the driver has no more buffer space for new packets, the core network server will block waiting for the output server to accept the IPC call.
+当设备驱动程序的传输队列中没有更多空间时，要注意设备驱动程序、输出环境和核心网络服务器之间的交互。核心网络服务器通过 IPC 向输出环境发送数据包。如果输出环境由于发送包系统调用而挂起，因为驱动程序没有更多的缓冲空间用于新的包，核心网络服务器将阻塞，等待输出服务器接受 IPC 调用。
 
-Exercise 8. Implement net/output.c.
+练习 8：实现 net/output.c.
 
-You can use net/testoutput.c to test your output code without involving the whole network server. Try running make E1000_DEBUG=TXERR,TX run-net_testoutput. You should see something like
+你可以使用 net/testoutput.c 来测试你的输出代码，不需要整个网络服务器参与进来。尝试运行 `make E1000_DEBUG=TXERR,TX run-net_testoutput`。你应该看到如下：
 
+```
 Transmitting packet 0
 e1000: index 0: 0x271f00 : 9000009 0
 Transmitting packet 1
 e1000: index 1: 0x2724ee : 9000009 0
 ...
-and tcpdump -XXnr qemu.pcap should output
+```
 
+以及 `tcpdump -XXnr qemu.pcap` 会输出：
+
+```
 reading from file qemu.pcap, link-type EN10MB (Ethernet)
 -5:00:00.600186 [|ether]
-0x0000: 5061 636b 6574 2030 30 Packet.00
+        0x0000: 5061 636b 6574 2030 30 Packet.00
 -5:00:00.610080 [|ether]
-0x0000: 5061 636b 6574 2030 31 Packet.01
+        0x0000: 5061 636b 6574 2030 31 Packet.01
 ...
-To test with a larger packet count, try make E1000_DEBUG=TXERR,TX NET_CFLAGS=-DTESTOUTPUT_COUNT=100 run-net_testoutput. If this overflows your transmit ring, double check that you're handling the DD status bit correctly and that you've told the hardware to set the DD status bit (using the RS command bit).
+```
 
-Your code should pass the testoutput tests of make grade.
+为了测试更大的数据包量，尝试`make E1000_DEBUG=TXERR,TX NET_CFLAGS=-DTESTOUTPUT_COUNT=100 run-net_testoutput`。如果这个让你的发送环移除了，那就多检查一下你正确处理了 DD 状态位，以及你是否正确地让硬件也设置了 DD 状态位（用 RS 命令位）。
 
-Question1：How did you structure your transmit implementation? In particular, what do you do if the transmit ring is full?
+你的代码应该通过`make grade`测试输出。
+
+问题 1：你如何组织你的发送实现的？详细来说，如果发送环满了你会怎么做？
 
 ## Part B: Receiving packets and the web server
 
 ### Receiving Packets
 
+Just like you did for transmitting packets, you'll have to configure the E1000 to receive packets and provide a receive descriptor queue and receive descriptors. Section 3.2 describes how packet reception works, including the receive queue structure and receive descriptors, and the initialization process is detailed in section 14.4.
+
+Exercise 9. Read section 3.2. You can ignore anything about interrupts and checksum offloading (you can return to these sections if you decide to use these features later), and you don't have to be concerned with the details of thresholds and how the card's internal caches work.
+
+The receive queue is very similar to the transmit queue, except that it consists of empty packet buffers waiting to be filled with incoming packets. Hence, when the network is idle, the transmit queue is empty (because all packets have been sent), but the receive queue is full (of empty packet buffers).
+
+When the E1000 receives a packet, it first checks if it matches the card's configured filters (for example, to see if the packet is addressed to this E1000's MAC address) and ignores the packet if it doesn't match any filters. Otherwise, the E1000 tries to retrieve the next receive descriptor from the head of the receive queue. If the head (RDH) has caught up with the tail (RDT), then the receive queue is out of free descriptors, so the card drops the packet. If there is a free receive descriptor, it copies the packet data into the buffer pointed to by the descriptor, sets the descriptor's DD (Descriptor Done) and EOP (End of Packet) status bits, and increments the RDH.
+
+If the E1000 receives a packet that is larger than the packet buffer in one receive descriptor, it will retrieve as many descriptors as necessary from the receive queue to store the entire contents of the packet. To indicate that this has happened, it will set the DD status bit on all of these descriptors, but only set the EOP status bit on the last of these descriptors. You can either deal with this possibility in your driver, or simply configure the card to not accept "long packets" (also known as jumbo frames) and make sure your receive buffers are large enough to store the largest possible standard Ethernet packet (1518 bytes).
+
+Exercise 10. Set up the receive queue and configure the E1000 by following the process in section 14.4. You don't have to support "long packets" or multicast. For now, don't configure the card to use interrupts; you can change that later if you decide to use receive interrupts. Also, configure the E1000 to strip the Ethernet CRC, since the grade script expects it to be stripped.
+
+By default, the card will filter out all packets. You have to configure the Receive Address Registers (RAL and RAH) with the card's own MAC address in order to accept packets addressed to that card. You can simply hard-code QEMU's default MAC address of 52:54:00:12:34:56 (we already hard-code this in lwIP, so doing it here too doesn't make things any worse). Be very careful with the byte order; MAC addresses are written from lowest-order byte to highest-order byte, so 52:54:00:12 are the low-order 32 bits of the MAC address and 34:56 are the high-order 16 bits.
+
+The E1000 only supports a specific set of receive buffer sizes (given in the description of RCTL.BSIZE in 13.4.22). If you make your receive packet buffers large enough and disable long packets, you won't have to worry about packets spanning multiple receive buffers. Also, remember that, just like for transmit, the receive queue and the packet buffers must be contiguous in physical memory.
+
+You should use at least 128 receive descriptors
+
+You can do a basic test of receive functionality now, even without writing the code to receive packets. Run make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput. testinput will transmit an ARP (Address Resolution Protocol) announcement packet (using your packet transmitting system call), which QEMU will automatically reply to. Even though your driver can't receive this reply yet, you should see a "e1000: unicast match[0]: 52:54:00:12:34:56" message, indicating that a packet was received by the E1000 and matched the configured receive filter. If you see a "e1000: unicast mismatch: 52:54:00:12:34:56" message instead, the E1000 filtered out the packet, which means you probably didn't configure RAL and RAH correctly. Make sure you got the byte ordering right and didn't forget to set the "Address Valid" bit in RAH. If you don't get any "e1000" messages, you probably didn't enable receive correctly.
+
+Now you're ready to implement receiving packets. To receive a packet, your driver will have to keep track of which descriptor it expects to hold the next received packet (hint: depending on your design, there's probably already a register in the E1000 keeping track of this). Similar to transmit, the documentation states that the RDH register cannot be reliably read from software, so in order to determine if a packet has been delivered to this descriptor's packet buffer, you'll have to read the DD status bit in the descriptor. If the DD bit is set, you can copy the packet data out of that descriptor's packet buffer and then tell the card that the descriptor is free by updating the queue's tail index, RDT.
+
+If the DD bit isn't set, then no packet has been received. This is the receive-side equivalent of when the transmit queue was full, and there are several things you can do in this situation. You can simply return a "try again" error and require the caller to retry. While this approach works well for full transmit queues because that's a transient condition, it is less justifiable for empty receive queues because the receive queue may remain empty for long stretches of time. A second approach is to suspend the calling environment until there are packets in the receive queue to process. This tactic is very similar to sys_ipc_recv. Just like in the IPC case, since we have only one kernel stack per CPU, as soon as we leave the kernel the state on the stack will be lost. We need to set a flag indicating that an environment has been suspended by receive queue underflow and record the system call arguments. The drawback of this approach is complexity: the E1000 must be instructed to generate receive interrupts and the driver must handle them in order to resume the environment blocked waiting for a packet.
+
+Exercise 11. Write a function to receive a packet from the E1000 and expose it to user space by adding a system call. Make sure you handle the receive queue being empty.
+
 ### Receiving Packets: Network Server
 
+In the network server input environment, you will need to use your new receive system call to receive packets and pass them to the core network server environment using the NSREQ_INPUT IPC message. These IPC input message should have a page attached with a union Nsipc with its struct jif_pkt pkt field filled in with the packet received from the network.
+
+Exercise 12. Implement net/input.c.
+
+Run testinput again with make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-net_testinput. You should see
+
+```
+Sending ARP announcement...
+Waiting for packets...
+e1000: index 0: 0x26dea0 : 900002a 0
+e1000: unicast match[0]: 52:54:00:12:34:56
+input: 0000   5254 0012 3456 5255  0a00 0202 0806 0001
+input: 0010   0800 0604 0002 5255  0a00 0202 0a00 0202
+input: 0020   5254 0012 3456 0a00  020f 0000 0000 0000
+input: 0030   0000 0000 0000 0000  0000 0000 0000 0000
+```
+
+The lines beginning with "input:" are a hexdump of QEMU's ARP reply.
+
+Your code should pass the testinput tests of make grade. Note that there's no way to test packet receiving without sending at least one ARP packet to inform QEMU of JOS' IP address, so bugs in your transmitting code can cause this test to fail.
+
+To more thoroughly test your networking code, we have provided a daemon called echosrv that sets up an echo server running on port 7 that will echo back anything sent over a TCP connection. Use make E1000_DEBUG=TX,TXERR,RX,RXERR,RXFILTER run-echosrv to start the echo server in one terminal and make nc-7 in another to connect to it. Every line you type should be echoed back by the server. Every time the emulated E1000 receives a packet, QEMU should print something like the following to the console:
+
+```
+e1000: unicast match[0]: 52:54:00:12:34:56
+e1000: index 2: 0x26ea7c : 9000036 0
+e1000: index 3: 0x26f06a : 9000039 0
+e1000: unicast match[0]: 52:54:00:12:34:56
+```
+
+At this point, you should also be able to pass the echosrv test.
+
+Question 2: How did you structure your receive implementation? In particular, what do you do if the receive queue is empty and a user environment requests the next incoming packet?
+
 ### The Web Server
+
+A web server in its simplest form sends the contents of a file to the requesting client. We have provided skeleton code for a very simple web server in user/httpd.c. The skeleton code deals with incoming connections and parses the headers.
+
+Exercise 13. The web server is missing the code that deals with sending the contents of a file back to the client. Finish the web server by implementing send_file and send_data.
+
+Once you've finished the web server, start the webserver (make run-httpd-nox) and point your favorite browser at http://host:port/index.html, where host is the name of the computer running QEMU (If you're running QEMU on athena use hostname.mit.edu (hostname is the output of the hostname command on athena, or localhost if you're running the web browser and QEMU on the same computer) and port is the port number reported for the web server by make which-ports . You should see a web page served by the HTTP server running inside JOS.
+
+At this point, you should score 105/105 on make grade.
+
+Question 3: What does the web page served by JOS's web server say?
+Question 4: How long approximately did it take you to do this lab?
+
+This completes the lab. As usual, don't forget to run make grade and to write up your answers and a description of your challenge exercise solution. Before handing in, use git status and git diff to examine your changes and don't forget to git add answers-lab6.txt. When you're ready, commit your changes with git commit -am 'my solutions to lab 6', then make handin and follow the directions.
