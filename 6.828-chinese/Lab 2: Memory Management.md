@@ -6,7 +6,7 @@
 
 第一个组件是内核的物理内存分配器，这样内核可以分配内存，然后释放它。你的分配器将以 4096 字节(称为页)为单位进行操作。你的任务将是维护数据结构，这些数据结构记录了哪些物理页面是空闲的，哪些被分配了，以及有多少进程共享每个分配的页面。你还将编写用于分配和释放内存页的例程。
 
-内存管理的第二个组件是虚拟内存，它将内核和用户软件使用的虚拟地址映射到物理内存中的地址。当指令使用内存时，x86 硬件的内存管理单元(MMU)会参考一组页表来执行映射。你将根据我们提供的规范修改 JOS 以设置 MMU 的页面表。
+内存管理的第二个组件是虚拟内存，它将内核和用户软件使用的虚拟地址映射到物理内存中的地址。当指令使用内存时，x86 硬件的内存管理单元(MMU)会参考一组页表来执行映射。你将根据我们提供的规范修改 JOS 以设置 MMU 的页表。
 
 ### 开始
 
@@ -71,7 +71,7 @@ Software             |              |-------->|           |---------->  RAM
 
 ```
 
-C 指针是虚地址的“偏移量”组件。在 boot/boot.S，我们建立了一个全局描述表(Global Descriptor Table, GDT)，通过将所有段的基址设置为 0 并限制至 0xffffffff，有效地禁用了段转换。因此，“选择子”没有作用，线性地址总是等于虚拟地址的偏移量。在实验 3 中，我们将不得不与分段机制进行更多的交互，以设置特权级别，但是对于内存转换，我们可以忽略整个 JOS 实验室中的分段机制，只关注分页机制。
+C 指针是虚地址的“偏移量”组件。在 boot/boot.S，我们建立了一个全局描述表(Global Descriptor Table， GDT)，通过将所有段的基址设置为 0 并限制至 0xffffffff，有效地禁用了段转换。因此，“选择子”没有作用，线性地址总是等于虚拟地址的偏移量。在实验 3 中，我们将不得不与分段机制进行更多的交互，以设置特权级别，但是对于内存转换，我们可以忽略整个 JOS 实验室中的分段机制，只关注分页机制。
 
 回想一下，在实验 1 的第 3 部分，我们创建了一个简单的页表，以便内核可以在它的链接地址 0xf0100000 处运行，尽管它实际上是在物理内存中加载的，就在 ROM BIOS 上面的 0x00100000 处。这个页表只映射了 4MB 的内存。在这个实验室中，您将为 JOS 设置虚拟地址空间布局，我们将对其进行扩展，以映射 0xf0000000 开始的虚拟地址到物理内存的前 256MB，并映射虚拟地址空间的许多其他区域。
 
@@ -111,7 +111,7 @@ JOS 内核有时还需要能够根据存储内核数据结构的内存的虚拟�
 
 ### 引用计数
 
-在之后的实验室中，您通常会将相同的物理页面同时映射到多个虚拟地址(或多个环境的地址空间)。您将在与物理页对应的结构 PageInfo 的 pp_ref 字段中保持对每个物理页的引用数量的计数。当物理页的这个计数为 0 时，该页可以被释放，因为它不再被使用。通常，这个计数应该等于物理页面在所有页面表中出现在 UTOP 下面的次数(UTOP 上面的映射大部分是在内核启动时设置的，不应该被释放，所以不需要引用计数)。我们还将使用它来跟踪指向页目录页的指针的数量，以及页目录对页表页的引用数量。
+在之后的实验室中，您通常会将相同的物理页面同时映射到多个虚拟地址(或多个环境的地址空间)。您将在与物理页对应的结构 PageInfo 的 pp_ref 字段中保持对每个物理页的引用数量的计数。当物理页的这个计数为 0 时，该页可以被释放，因为它不再被使用。通常，这个计数应该等于物理页面在所有页表中出现在 UTOP 下面的次数(UTOP 上面的映射大部分是在内核启动时设置的，不应该被释放，所以不需要引用计数)。我们还将使用它来跟踪指向页目录页的指针的数量，以及页目录对页表页的引用数量。
 
 使用 page_alloc 时要小心。它返回的页面的引用计数总是 0，所以 pp_ref 应该在您对返回的页面做了一些操作(比如将其插入到页表中)之后递增。有时这是由其他函数(例如，page_insert)处理的，有时调用 page_alloc 的函数必须直接执行。
 
@@ -139,58 +139,58 @@ JOS 会将处理器的 32 位线性地址空间分为两部分。我们将在 la
 
 由于内核和用户内存都存在于每个环境的地址空间中，所以我们必须在 x86 页表中使用权限位来允许用户代码只访问地址空间的用户部分。否则，用户代码中的 bug 可能会覆盖内核数据，导致崩溃或更微妙的故障；用户代码也可以窃取其他环境的私有数据。请注意，可写权限位(PTE_W)同时影响用户和内核代码！
 
-用户环境对 ULIM 以上的任何内存都没有权限，而内核将能够读写这些内存。对于地址范围[UTOP,ULIM]，内核和用户环境都有相同的权限:他们可以读但不能写这个地址范围。这个地址范围用于向用户环境以只读方式公开某些内核数据结构。最后，UTOP 下面的地址空间是供用户环境使用的;用户环境将设置访问该内存的权限。
+用户环境对 ULIM 以上的任何内存都没有权限，而内核将能够读写这些内存。对于地址范围[UTOP，ULIM)，内核和用户环境都有相同的权限：它们可以读但不能写这个地址范围。这个地址范围用于向用户环境以只读方式公开某些内核数据结构。最后，UTOP 下面的地址空间是供用户环境使用的；用户环境将设置访问该内存的权限。
 
-The user environment will have no permission to any of the memory above ULIM, while the kernel will be able to read and write this memory. For the address range [UTOP,ULIM), both the kernel and the user environment have the same permission: they can read but not write this address range. This range of address is used to expose certain kernel data structures read-only to the user environment. Lastly, the address space below UTOP is for the user environment to use; the user environment will set permissions for accessing this memory.
+### 初始化内核地址空间
 
-### Initializing the Kernel Address Space
+现在你可以设置 UTOP 之上的地址空间了：地址空间的内核部分。inc/memlayout.h 展示你应该使用的内存布局。你会使用
 
-Now you'll set up the address space above UTOP: the kernel part of the address space. inc/memlayout.h shows the layout you should use. You'll use the functions you just wrote to set up the appropriate linear to physical mappings.
+练习 5：填充 mem_init()里在调用里 check_page()之后丢失的代码。
 
-Exercise 5. Fill in the missing code in mem_init() after the call to check_page().
+你的代码应该通过 check_kern_pgdir()和 check_page_installed_pgdir()这两个函数的检查。
 
-Your code should now pass the check_kern_pgdir() and check_page_installed_pgdir() checks.
+问题
 
-Question
+2、此时，页面目录中的哪些条目(行)已经被创建？它们映射了什么地址，指向什么地方？换句话说，尽可能多地填写这个表格:
 
-2、What entries (rows) in the page directory have been filled in at this point? What addresses do they map and where do they point? In other words, fill out this table as much as possible:
+| Entry | Base Virtual Address | Points to (logically)                 |
+| ----- | -------------------- | ------------------------------------- |
+| 1023  | ？                   | Page table for top 4MB of phys memory |
+| 1022  | ？                   | ？                                    |
+| .     | ？                   | ？                                    |
+| .     | ？                   | ？                                    |
+| .     | ？                   | ？                                    |
+| 2     | 0x00800000           | ？                                    |
+| 1     | 0x00400000           | ？                                    |
+| 0     | 0x00000000           | [see next question]                   |
 
-```
-Entry Base Virtual Address	Points to (logically):
-1023	?	Page table for top 4MB of phys memory
-1022	?	?
-.	?	?
-.	?	?
-.	?	?
-2	0x00800000	?
-1	0x00400000	?
-0	0x00000000	[see next question]
-```
+3、我们把内核和用户环境放在同一个地址空间。为什么用户程序不能读写内核内存？哪些特定的机制保护内核内存？
 
-3、We have placed the kernel and user environment in the same address space. Why will user programs not be able to read or write the kernel's memory? What specific mechanisms protect the kernel memory?
-4、What is the maximum amount of physical memory that this operating system can support? Why?
-5、How much space overhead is there for managing memory, if we actually had the maximum amount of physical memory? How is this overhead broken down?
-6、Revisit the page table setup in kern/entry.S and kern/entrypgdir.c. Immediately after we turn on paging, EIP is still a low number (a little over 1MB). At what point do we transition to running at an EIP above KERNBASE? What makes it possible for us to continue executing at a low EIP between when we enable paging and when we begin running at an EIP above KERNBASE? Why is this transition necessary?
+4、这个操作系统能支持的最大物理内存是多少？为什么？
 
-Challenge! We consumed many physical pages to hold the page tables for the KERNBASE mapping. Do a more space-efficient job using the PTE_PS ("Page Size") bit in the page directory entries. This bit was not supported in the original 80386, but is supported on more recent x86 processors. You will therefore have to refer to [Volume 3 of the current Intel manuals](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf). Make sure you design the kernel to use this optimization only on processors that support it!
+5、如果我们有最大的物理内存，那么管理内存需要多少空间开销？这个开销是怎么分解的？
 
-Challenge! Extend the JOS kernel monitor with commands to:
+6、重新在 kern/entry.S 中设置页表。年代和 kern/entrypgdir.c。打开分页后，EIP 仍然是一个较低的数字(略高于 1MB)。在什么时候我们可以过渡到运行在 KERNBASE 之上的 EIP？是什么使我们能够在启用分页和开始在 KERNBASE 之上的 EIP 上运行之间继续以较低的 EIP 执行呢？为什么这种转变是必要的？
 
--   Display in a useful and easy-to-read format all of the physical page mappings (or lack thereof) that apply to a particular range of virtual/linear addresses in the currently active address space. For example, you might enter 'showmappings 0x3000 0x5000' to display the physical page mappings and corresponding permission bits that apply to the pages at virtual addresses 0x3000, 0x4000, and 0x5000.
--   Explicitly set, clear, or change the permissions of any mapping in the current address space.
+挑战！我们消耗了很多物理页来保存 KERNBASE 映射的页表。在页目录条目中使用 PTE_PS(“Page Size”)位来节省空间。这个位在最初的 80386 中不受支持，但是在最新的 x86 处理器中得到了支持。因此，您必须参考[Volume 3 of the current Intel manuals](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf)。确保您设计的内核只在支持这种优化的处理器上使用这种优化!
+
+挑战！Extend the JOS kernel monitor with commands to:
+
+-   Display in a useful and easy-to-read format all of the physical page mappings (or lack thereof) that apply to a particular range of virtual/linear addresses in the currently active address space. For example， you might enter 'showmappings 0x3000 0x5000' to display the physical page mappings and corresponding permission bits that apply to the pages at virtual addresses 0x3000， 0x4000， and 0x5000.
+-   Explicitly set， clear， or change the permissions of any mapping in the current address space.
 -   Dump the contents of a range of memory given either a virtual or physical address range. Be sure the dump code behaves correctly when the range extends across page boundaries!
 -   Do anything else that you think might be useful later for debugging the kernel. (There's a good chance it will be!)
 
-### Address Space Layout Alternatives
+### 地址空间布局替换方案
 
-The address space layout we use in JOS is not the only one possible. An operating system might map the kernel at low linear addresses while leaving the upper part of the linear address space for user processes. x86 kernels generally do not take this approach, however, because one of the x86's backward-compatibility modes, known as virtual 8086 mode, is "hard-wired" in the processor to use the bottom part of the linear address space, and thus cannot be used at all if the kernel is mapped there.
+我们在 JOS 中使用的地址空间布局不是唯一的。一个操作系统可能会将内核映射为低线性地址，而将线性地址空间的上部留给用户进程。x86 内核一般不采取这种方法，然而，因为 x86 的向后兼容模式，称为虚拟 8086 模式，“硬接线”使用处理器底部的线性地址空间，因此如果内核映射到这里就不可用。
 
-It is even possible, though much more difficult, to design the kernel so as not to have to reserve any fixed portion of the processor's linear or virtual address space for itself, but instead effectively to allow user-level processes unrestricted use of the entire 4GB of virtual address space - while still fully protecting the kernel from these processes and protecting different processes from each other!
+尽管更加困难，但是这是有可能的，设计内核使其不必为自己保留任何固定的处理器线性或虚拟地址空间，而是有效地允许用户级进程不受限制地使用整个 4GB 的虚拟地址空间——同时仍然完全保护内核不受这些进程的影响，并保护不同的进程不受其他进程的影响!
 
-Challenge! Each user-level environment maps the kernel. Change JOS so that the kernel has its own page table and so that a user-level environment runs with a minimal number of kernel pages mapped. That is, each user-level environment maps just enough pages mapped so that the user-level environment can enter and leave the kernel correctly. You also have to come up with a plan for the kernel to read/write arguments to system calls.
+Challenge! Each user-level environment maps the kernel. Change JOS so that the kernel has its own page table and so that a user-level environment runs with a minimal number of kernel pages mapped. That is， each user-level environment maps just enough pages mapped so that the user-level environment can enter and leave the kernel correctly. You also have to come up with a plan for the kernel to read/write arguments to system calls.
 
-Challenge! Write up an outline of how a kernel could be designed to allow user environments unrestricted use of the full 4GB virtual and linear address space. Hint: do the previous challenge exercise first, which reduces the kernel to a few mappings in a user environment. Hint: the technique is sometimes known as "follow the bouncing kernel." In your design, be sure to address exactly what has to happen when the processor transitions between kernel and user modes, and how the kernel would accomplish such transitions. Also describe how the kernel would access physical memory and I/O devices in this scheme, and how the kernel would access a user environment's virtual address space during system calls and the like. Finally, think about and describe the advantages and disadvantages of such a scheme in terms of flexibility, performance, kernel complexity, and other factors you can think of.
+Challenge! Write up an outline of how a kernel could be designed to allow user environments unrestricted use of the full 4GB virtual and linear address space. Hint: do the previous challenge exercise first， which reduces the kernel to a few mappings in a user environment. Hint: the technique is sometimes known as "follow the bouncing kernel." In your design， be sure to address exactly what has to happen when the processor transitions between kernel and user modes， and how the kernel would accomplish such transitions. Also describe how the kernel would access physical memory and I/O devices in this scheme， and how the kernel would access a user environment's virtual address space during system calls and the like. Finally， think about and describe the advantages and disadvantages of such a scheme in terms of flexibility， performance， kernel complexity， and other factors you can think of.
 
-Challenge! Since our JOS kernel's memory management system only allocates and frees memory on page granularity, we do not have anything comparable to a general-purpose malloc/free facility that we can use within the kernel. This could be a problem if we want to support certain types of I/O devices that require physically contiguous buffers larger than 4KB in size, or if we want user-level environments, and not just the kernel, to be able to allocate and map 4MB superpages for maximum processor efficiency. (See the earlier challenge problem about PTE_PS.)
+Challenge! Since our JOS kernel's memory management system only allocates and frees memory on page granularity， we do not have anything comparable to a general-purpose malloc/free facility that we can use within the kernel. This could be a problem if we want to support certain types of I/O devices that require physically contiguous buffers larger than 4KB in size， or if we want user-level environments， and not just the kernel， to be able to allocate and map 4MB superpages for maximum processor efficiency. (See the earlier challenge problem about PTE_PS.)
 
-Generalize the kernel's memory allocation system to support pages of a variety of power-of-two allocation unit sizes from 4KB up to some reasonable maximum of your choice. Be sure you have some way to divide larger allocation units into smaller ones on demand, and to coalesce multiple small allocation units back into larger units when possible. Think about the issues that might arise in such a system.
+Generalize the kernel's memory allocation system to support pages of a variety of power-of-two allocation unit sizes from 4KB up to some reasonable maximum of your choice. Be sure you have some way to divide larger allocation units into smaller ones on demand， and to coalesce multiple small allocation units back into larger units when possible. Think about the issues that might arise in such a system.
