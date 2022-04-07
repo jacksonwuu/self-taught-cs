@@ -2,9 +2,9 @@
 
 ## 介绍
 
-在本实验室中，您将实现运行受保护的用户模式环境(即“进程”)所需的基本内核设施。您将增强 JOS 内核，以设置数据结构来跟踪用户环境、创建单个用户环境、将程序映像加载到其中并启动它。您还将使 JOS 内核能够处理用户环境发出的任何系统调用，并处理它引起的任何其他异常。
+在本实验室中，你将实现运行受保护的用户模式环境(即“进程”)所需的基本内核设施。你将增强 JOS 内核，以设置数据结构来跟踪用户环境、创建单个用户环境、将程序映像加载到其中并启动它。你还将使 JOS 内核能够处理用户环境发出的任何系统调用，并处理它引起的任何其他异常。
 
-注意：在本实验室中，术语“环境”和“进程”是可以互换的——它们都是指允许您运行程序的抽象。我们引入术语“环境”而不是传统的术语“进程”，是为了强调 JOS 环境和 UNIX 进程提供不同的接口，并且不提供相同的语义。
+注意：在本实验室中，术语“环境”和“进程”是可以互换的——它们都是指允许你运行程序的抽象。我们引入术语“环境”而不是传统的术语“进程”，是为了强调 JOS 环境和 UNIX 进程提供不同的接口，并且不提供相同的语义。
 
 ### 开始
 
@@ -68,11 +68,11 @@ You may also want to take another look at the lab tools guide, as it includes in
 
 ### 内联汇编
 
-在这个实验中，您可能会发现 GCC 的内联汇编语言特性很有用，尽管不使用它也可以完成这个实验。至少，您需要能够理解我们提供的源代码中已经存在的内联汇编语言片段(“asm”语句)。您可以在课程[参考资料页面](https://pdos.csail.mit.edu/6.828/2018/reference.html)上找到关于 GCC 内联汇编语言的几个信息来源。
+在这个实验中，你可能会发现 GCC 的内联汇编语言特性很有用，尽管不使用它也可以完成这个实验。至少，你需要能够理解我们提供的源代码中已经存在的内联汇编语言片段(“asm”语句)。你可以在课程[参考资料页面](https://pdos.csail.mit.edu/6.828/2018/reference.html)上找到关于 GCC 内联汇编语言的几个信息来源。
 
 ## Part A: User Environments and Exception Handling
 
-新的 include 文件 inc/env.h 包含了 JOS 中用户环境的基本定义。现在读它。内核使用 Env 数据结构来跟踪每个用户环境。在本实验室中，您将最初只创建一个环境，但您需要设计 JOS 内核来支持多个环境；Lab 4 将通过允许用户环境 fork（创建）其他环境来利用这个特性。
+新的 include 文件 inc/env.h 包含了 JOS 中用户环境的基本定义。现在读它。内核使用 Env 数据结构来跟踪每个用户环境。在本实验室中，你将最初只创建一个环境，但你需要设计 JOS 内核来支持多个环境；Lab 4 将通过允许用户环境 fork（创建）其他环境来利用这个特性。
 
 正如你在 kern/env.c 中看到的，内核维护了三个与环境相关的主要全局变量：
 
@@ -142,53 +142,47 @@ env_pgdir:
 
 ### 为环境数组申请内存
 
-在实验室 2 中，您在 mem_init()中为 pages[]数组分配了内存，这是一个表，内核使用它来跟踪哪些页面是空闲的，哪些不是。现在需要进一步修改 mem_init()来分配一个类似的 Env 结构数组，称为 envs。
+在实验室 2 中，你在 mem_init()中为 pages[]数组分配了内存，这是一个表，内核使用它来跟踪哪些页面是空闲的，哪些不是。现在需要进一步修改 mem_init()来分配一个类似的 Env 结构数组，称为 envs。
 
 练习 1：修改 kern/pmap.c 中的 mem_init()来分配和映射 envs 数组。这个数组由 NENV 个 Env 结构体组成，分配内存的方式很像你给 pages 数组分配内存的方式。同样如 pages 数组一样，envs 的内存应该被映射到 UENVS (定义在 inc/memlayout.h 中)，并设为用户只读，这样用户进程可以从这个数组中读取数据。
 
-您应该运行代码并确保 check_kern_pgdir()成功。
+你应该运行代码并确保 check_kern_pgdir()成功。
 
 ### 创建及运行环境
 
-现在，您将在 kern/env.c 中编写运行用户环境所必需的代码。因为我们还没有文件系统，所以我们将设置内核来加载嵌入到内核本身中的静态二进制映像。JOS 将该二进制文件作为 ELF 可执行映像嵌入到内核中。
+现在，你要到 kern/env.c 中编写运行用户环境所必需的代码。因为我们还没有文件系统，所以我们将设置内核来加载内核本身嵌入的静态二进制映像。JOS 将该二进制文件作为 ELF 可执行映像嵌入到内核中。
 
-Lab 3 GNUmakefile 在 obj/user/目录中生成许多二进制图像。如果您查看 kern/Makefrag，您会注意到一些神奇的东西，将这些二进制文件直接“链接”到内核可执行文件中，就像它们是.o 文件一样。链接器命令行上的-b 二进制选项导致这些文件被链接为“原始的”未解释的二进制文件，而不是编译器生成的常规的.o 文件。(就链接器而言，这些文件根本不必是 ELF 图像——它们可以是任何文件，例如文本文件或图片!)如果你看 obj/kern/kernel。Sym 在构建完内核后，你会注意到链接器“神奇地”生成了许多有趣的符号，它们的名字晦涩难懂，比如\_binary_obj_user_hello_start、\_binary_obj_user_hello_end 和\_binary_obj_user_hello_size。链接器通过修改二进制文件的文件名来生成这些符号名;这些符号为常规内核代码提供了一种引用嵌入二进制文件的方式。
+Lab 3 GNUmakefile 在 obj/user/ 目录中生成许多二进制镜像。如果你查看 kern/Makefrag，你会注意到一些神奇的东西，将这些二进制文件直接“链接”到内核可执行文件中，就好像它们是 .o 文件一样。链接器命令行上的 -b 二进制选项让这些文件被链接为“raw”未解释的二进制文件，而不是编译器生成的常规 .o 文件。(就链接器而言，这些文件根本不必是 ELF 镜像——它们可以是任何文件，例如文本文件或图片!)在构建完内核后，如果你查看 obj/kern/kernel.sym，你会注意到链接器“神奇地”生成了许多有趣的符号，它们的名字晦涩难懂，比如\_binary_obj_user_hello_start、\_binary_obj_user_hello_end 和\_binary_obj_user_hello_size。链接器通过修改二进制文件的文件名来生成这些符号名；这些符号为常规内核代码提供了一种引用嵌入二进制文件的方式。
 
-在 kern/init.c 中的 i386_init()中，您将看到在环境中运行这些二进制映像之一的代码。然而，建立用户环境的关键功能还不完整;你需要把它们填上。
+在 kern/init.c 中的 i386_init()中，你将看到在环境中运行着这些二进制映像之一的代码。然而，创建用户环境的关键功能还不完整；你需要把它们填上。
 
-You will now write the code in kern/env.c necessary to run a user environment. Because we do not yet have a filesystem, we will set up the kernel to load a static binary image that is embedded within the kernel itself. JOS embeds this binary in the kernel as a ELF executable image.
-
-The Lab 3 GNUmakefile generates a number of binary images in the obj/user/ directory. If you look at kern/Makefrag, you will notice some magic that "links" these binaries directly into the kernel executable as if they were .o files. The -b binary option on the linker command line causes these files to be linked in as "raw" uninterpreted binary files rather than as regular .o files produced by the compiler. (As far as the linker is concerned, these files do not have to be ELF images at all - they could be anything, such as text files or pictures!) If you look at obj/kern/kernel.sym after building the kernel, you will notice that the linker has "magically" produced a number of funny symbols with obscure names like \_binary_obj_user_hello_start, \_binary_obj_user_hello_end, and \_binary_obj_user_hello_size. The linker generates these symbol names by mangling the file names of the binary files; the symbols provide the regular kernel code with a way to reference the embedded binary files.
-
-In i386_init() in kern/init.c you'll see code to run one of these binary images in an environment. However, the critical functions to set up user environments are not complete; you will need to fill them in.
-
-Exercise 2. In the file env.c, finish coding the following functions:
+练习 2：在文件 env.c 里，完成如下函数里的代码：
 
 ```
 env_init()
-    Initialize all of the Env structures in the envs array and add them to the env_free_list. Also calls env_init_percpu, which configures the segmentation hardware with separate segments for privilege level 0 (kernel) and privilege level 3 (user).
+    初始化 envs 数组里所有的 Env 结构体，并把它们添加到 env_free_list 上。也要调用 env_initpercpu，用不同特权级别的分段（level 0 为内核态，level 3 为用户态）来配置分段硬件。
 env_setup_vm()
-    Allocate a page directory for a new environment and initialize the kernel portion of the new environment's address space.
+    为新用户环境申请一个页目录，并在内核里初始化新用户环境的地址空间。
 region_alloc()
-    Allocates and maps physical memory for an environment
+    为某个用户环境申请并映射物理内存。
 load_icode()
-    You will need to parse an ELF binary image, much like the boot loader already does, and load its contents into the user address space of a new environment.
+    你需要解析 ELF 二进制镜像文件，就像 boot loader 所做的那样，并加载它的内容到一个新的环境的用户地址空间里。
 env_create()
-    Allocate an environment with env_alloc and call load_icode to load an ELF binary into it.
+    用 env_alloc() 申请一个环境并调用 load_icode 来加载一个 ELF 二进制文件进去。
 env_run()
-    Start a given environment running in user mode.
+    在用户模式下运行一个给定的环境。
 ```
 
-As you write these functions, you might find the new cprintf verb %e useful -- it prints a description corresponding to an error code. For example,
+在编写这些函数时，你可能会发现 cprintf 新的动词 %e 很有用——它输出与错误代码对应的描述。例如：
 
 ```c
 r = -E_NO_MEM;
 panic("env_alloc: %e", r);
 ```
 
-will panic with the message "env_alloc: out of memory".
+会以消息“env_alloc: out of memory”产生 panic。
 
-Below is a call graph of the code up to the point where the user code is invoked. Make sure you understand the purpose of each step.
+下面是到调用用户代码之前的函数调用图。确保你理解了每一步的目的。
 
 -   start (kern/entry.S)
 -   i386_init (kern/init.c)
@@ -200,25 +194,29 @@ Below is a call graph of the code up to the point where the user code is invoked
     -   env_run
         -   env_pop_tf
 
-Once you are done you should compile your kernel and run it under QEMU. If all goes well, your system should enter user space and execute the hello binary until it makes a system call with the int instruction. At that point there will be trouble, since JOS has not set up the hardware to allow any kind of transition from user space into the kernel. When the CPU discovers that it is not set up to handle this system call interrupt, it will generate a general protection exception, find that it can't handle that, generate a double fault exception, find that it can't handle that either, and finally give up with what's known as a "triple fault". Usually, you would then see the CPU reset and the system reboot. While this is important for legacy applications (see this blog post for an explanation of why), it's a pain for kernel development, so with the 6.828 patched QEMU you'll instead see a register dump and a "Triple fault." message.
+一旦完成，你应该编译内核并在 QEMU 下运行它。如果一切正常，系统应该进入用户空间并执行 hello 二进制文件，直到它使用 int 指令进行系统调用。在这一点上将会有麻烦，因为 JOS 还没有设置硬件来允许从用户空间到内核的任何形式的转换。当 CPU 发现它还没有建立这个系统调用中断处理，它将生成一个通用保护异常，发现它无法处理这种错误，生成一个 double fault exception，然后发现它也无法处理错误，最后以所谓的“三重错误”而放弃错误处理。通常，你会看到 CPU 复位和系统重新启动。虽然这对于遗留应用程序很重要(关于原因的解释，请参阅[这篇博客文章](http://blogs.msdn.com/larryosterman/archive/2005/02/08/369243.aspx))，但这对内核开发来说是一件痛苦的事情，因此使用 QEMU 的 6.828 补丁版，你将看到一个寄存器转储和一个“Triple fault.”消息。
 
-We'll address this problem shortly, but for now we can use the debugger to check that we're entering user mode. Use make qemu-gdb and set a GDB breakpoint at env_pop_tf, which should be the last function you hit before actually entering user mode. Single step through this function using si; the processor should enter user mode after the iret instruction. You should then see the first instruction in the user environment's executable, which is the cmpl instruction at the label start in lib/entry.S. Now use b \*0x... to set a breakpoint at the int $0x30 in sys_cputs() in hello (see obj/user/hello.asm for the user-space address). This int is the system call to display a character to the console. If you cannot execute as far as the int, then something is wrong with your address space setup or program loading code; go back and fix it before continuing.
+我们将很快定位这个问题，但是现在我们可以使用 debugger 来检查我们是否进入了用户模式。使用 make qemu-gdb 并在 env_pop_tf 上设置一个 GDB 断点，这应该是你实际进入用户模式之前执行的最后一个函数。通过 si 命令来单步调试这个函数；在 iret 指令执行之后，处理器应该进入了用户模式。然后，你应该在用户环境的可执行文件中看到第一个指令，即 lib/entry.S 中标签开始处的 cmpl 指令。现在使用 b \*0x… 命令在 hello 中的 sys_cputs()中 int $0x30 处设置断点(请参见 obj/user/hello.asm 的用户空间地址)。这个 int 是向控制台显示一个字符的系统调用。如果你不能执行到 int，那么你的地址空间设置或程序加载代码有问题；在继续下一步之前先修复好这些问题。
 
-### Handling Interrupts and Exceptions
+### 处理中断和异常
 
-At this point, the first int $0x30 system call instruction in user space is a dead end: once the processor gets into user mode, there is no way to get back out. You will now need to implement basic exception and system call handling, so that it is possible for the kernel to recover control of the processor from user-mode code. The first thing you should do is thoroughly familiarize yourself with the x86 interrupt and exception mechanism.
+此时，用户空间中的第一个 int $0x30 系统调用指令是一个死胡同：一旦处理器进入用户模式，就没有办法返回了。现在，你需要实现基本的异常和系统调用处理，以便内核可以从用户模式代码恢复对处理器的控制。你应该做的第一件事是彻底熟悉 x86 中断和异常机制。
+
+练习 3：如果你还没有准备好写代码，那么就读一下[80386 程序员手册](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm)里的[Chapter 9, Exceptions and Interrupts](https://pdos.csail.mit.edu/6.828/2018/readings/i386/c09.htm)(或第五章的[IA-32 开发者手册](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf))。
+
+在这个实验室中，我们通常遵循 Intel 关于中断、异常等的术语。然而，像 exception，trap，interrupt，fault 和 abort 这样的术语在体系结构或操作系统中没有标准的含义，并且经常在使用时不考虑它们在特定体系结构(如 x86)上的细微差别。当你在这个实验室之外看到这些术语时，它们的含义可能会略有不同。
 
 Exercise 3. Read [Chapter 9, Exceptions and Interrupts](https://pdos.csail.mit.edu/6.828/2018/readings/i386/c09.htm) in the [80386 Programmer's Manual](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm) (or Chapter 5 of the [IA-32 Developer's Manual](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf)), if you haven't already.
 
-In this lab we generally follow Intel's terminology for interrupts, exceptions, and the like. However, terms such as exception, trap, interrupt, fault and abort have no standard meaning across architectures or operating systems, and are often used without regard to the subtle distinctions between them on a particular architecture such as the x86. When you see these terms outside of this lab, the meanings might be slightly different.
+### Basics of Protected Control Transfer（保护控制转移的基础）
 
-### Basics of Protected Control Transfer
+异常和中断都是“受保护的控制转移”，这导致处理器从用户模式切换到内核模式(CPL=0)，而不会给用户态代码提供任何干扰内核或其他环境功能的机会。在 Intel 的术语中，中断是一种受保护的控制转移，通常是由处理器外部的异步事件引起的，比如外部设备 I/O 活动的通知。有个例外正好相反，异常是由当前运行的代码同步引起的受保护的控制转移，例如由于除数为 0 或无效的内存访问而导致的异常。
 
-Exceptions and interrupts are both "protected control transfers," which cause the processor to switch from user to kernel mode (CPL=0) without giving the user-mode code any opportunity to interfere with the functioning of the kernel or other environments. In Intel's terminology, an interrupt is a protected control transfer that is caused by an asynchronous event usually external to the processor, such as notification of external device I/O activity. An exception, in contrast, is a protected control transfer caused synchronously by the currently running code, for example due to a divide by zero or an invalid memory access.
+为了确保这些受保护的控制传输实际上受到了保护，处理器的中断/异常机制被设计成这样，当中断或异常发生时，当前运行的代码不会任意选择进入内核的位置或方式。相反，处理器确保只有在严格控制的条件下才能进入内核。在 x86 上，有两种机制共同提供这种保护：
 
-In order to ensure that these protected control transfers are actually protected, the processor's interrupt/exception mechanism is designed so that the code currently running when the interrupt or exception occurs does not get to choose arbitrarily where the kernel is entered or how. Instead, the processor ensures that the kernel can be entered only under carefully controlled conditions. On the x86, two mechanisms work together to provide this protection:
+1. 中断描述符表。处理器确保中断和异常导致的进入内核只会从一些特定的、提前设置好的入口（这些入口是由内核自己决定的）进，而不是由产生中断和异常时产生的代码决定的。
 
-1. The Interrupt Descriptor Table. The processor ensures that interrupts and exceptions can only cause the kernel to be entered at a few specific, well-defined entry-points determined by the kernel itself, and not by the code running when the interrupt or exception is taken.
+    x86 允许多达 256 个不同的中断或异常进入内核，每个都有不同的中断向量。向量是 0 到 255 之间的一个数。中断的向量由中断的来源决定：不同的设备、错误条件和应用程序对内核的请求都会产生不同的中断向量。CPU 将 vector 用作处理器的中断描述符表(IDT)的索引，内核在内核私有内存中设置该表，与 GDT 非常相似。处理器从该表的相应条目中加载:
 
     The x86 allows up to 256 different interrupt or exception entry points into the kernel, each with a different interrupt vector. A vector is a number between 0 and 255. An interrupt's vector is determined by the source of the interrupt: different devices, error conditions, and application requests to the kernel generate interrupts with different vectors. The CPU uses the vector as an index into the processor's interrupt descriptor table (IDT), which the kernel sets up in kernel-private memory, much like the GDT. From the appropriate entry in this table the processor loads:
 
