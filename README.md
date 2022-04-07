@@ -6,19 +6,19 @@ Documenting my self-learning experience.
 
 Note: Many posts are still draft.
 
--   [国外大学计算机公开课学习指南](./guide.md)
+-   [学习指南](./guide.md)
 
 ### What I am Learning right now?
 
+-   [MIT 6.006 Introduction to algorithms (2011 Fall)](https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/)
+
 -   [MIT 6.828 Operating System Engineering (2018 Fall)](https://pdos.csail.mit.edu/6.828/2018/schedule.html)
 
--   [MIT 6.824 Distributed Systems](http://nil.lcs.mit.edu/6.824/2020/schedule.html)
+-   [MIT 6.824 Distributed Systems (2020)](http://nil.lcs.mit.edu/6.824/2020/schedule.html)
 
--   [CMU 15-721 Advanced Database Systems](https://15721.courses.cs.cmu.edu/spring2020/schedule.html)
+-   [CMU 15-721 Advanced Database Systems (2020 Spring)](https://15721.courses.cs.cmu.edu/spring2020/schedule.html)
 
 -   [SU CS144 Computer Network](https://cs144.github.io/)
-
--   [CS 61B Data Structures (2019 Spring)](https://sp19.datastructur.es)
 
 ### The key of self learning these courses
 

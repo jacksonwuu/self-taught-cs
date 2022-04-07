@@ -31,25 +31,25 @@ athena%
 Lab 3 contains a number of new source files, which you should browse:
 
 ```
-inc/	env.h	Public definitions for user-mode environments
-        trap.h	Public definitions for trap handling
+inc/	env.h	    Public definitions for user-mode environments
+        trap.h	    Public definitions for trap handling
         syscall.h	Public definitions for system calls from user environments to the kernel
-        lib.h	Public definitions for the user-mode support library
-kern/	env.h	Kernel-private definitions for user-mode environments
-        env.c	Kernel code implementing user-mode environments
-        trap.h	Kernel-private trap handling definitions
-        trap.c	Trap handling code
+        lib.h	    Public definitions for the user-mode support library
+kern/	env.h	    Kernel-private definitions for user-mode environments
+        env.c	    Kernel code implementing user-mode environments
+        trap.h	    Kernel-private trap handling definitions
+        trap.c	    Trap handling code
         trapentry.S	Assembly-language trap handler entry-points
         syscall.h	Kernel-private definitions for system call handling
         syscall.c	System call implementation code
 lib/	Makefrag	Makefile fragment to build user-mode library, obj/lib/libjos.a
-        entry.S	Assembly-language entry-point for user environments
+        entry.S	    Assembly-language entry-point for user environments
         libmain.c	User-mode library setup code called from entry.S
         syscall.c	User-mode system call stub functions
         console.c	User-mode implementations of putchar and getchar, providing console I/O
-        exit.c	User-mode implementation of exit
-        panic.c	User-mode implementation of panic
-user/	*	Various test programs to check kernel lab 3 code
+        exit.c	    User-mode implementation of exit
+        panic.c	    User-mode implementation of panic
+user/	*	        Various test programs to check kernel lab 3 code
 ```
 
 In addition, a number of the source files we handed out for lab2 are modified in lab3. To see the differences, you can type:
@@ -119,36 +119,42 @@ env_id:
 env_parent_id:
     内核在这里存储创建该环境的环境（类似于父进程）的env_id。通过这种方式，环境可以形成一个“家族树”，这将有助于做出关于哪些环境允许对谁做什么事情的安全决策。
 env_type:
-    This is used to distinguish special environments. For most environments, it will be ENV_TYPE_USER. We'll introduce a few more types for special system service environments in later labs.
+    这个是用来区分特殊环境的。大多数环境都是ENV_TYPE_USER类型。在以后的实验中，我们将介绍更多用于特殊系统服务环境的类型。
 env_status:
-    This variable holds one of the following values:
+    该变量用来存放以下值之一：
     ENV_FREE:
-        Indicates that the Env structure is inactive, and therefore on the env_free_list.
+        表示该Env结构体没有在运行，所以它在env_free_list列表里。
     ENV_RUNNABLE:
-        Indicates that the Env structure represents an environment that is waiting to run on the processor.
+        表示该Env结构体为正在等待运行的环境。
     ENV_RUNNING:
-        Indicates that the Env structure represents the currently running environment.
+        表示该Env结构体为当前的运行环境。
     ENV_NOT_RUNNABLE:
-        Indicates that the Env structure represents a currently active environment, but it is not currently ready to run: for example, because it is waiting for an interprocess communication (IPC) from another environment.
+        表示该Env结构体为当前激活的环境，但它目前还没有准备好运行：例如，因为它正在等待来自另一个环境的进程间通信(IPC)。
     ENV_DYING:
-        Indicates that the Env structure represents a zombie environment. A zombie environment will be freed the next time it traps to the kernel. We will not use this flag until Lab 4.
+        表示该Env结构体为一个僵尸环境。僵尸环境会在下一次陷入内核时被清除掉。我们在 Lab 4 之前都不会用到这个标志。
 env_pgdir:
-    This variable holds the kernel virtual address of this environment's page directory.
+    这个变量保存了这个环境的页目录的内核虚拟地址。
 ```
 
-Like a Unix process, a JOS environment couples the concepts of "thread" and "address space". The thread is defined primarily by the saved registers (the env_tf field), and the address space is defined by the page directory and page tables pointed to by env_pgdir. To run an environment, the kernel must set up the CPU with both the saved registers and the appropriate address space.
+像 Unix 进程一样，JOS 环境将“线程”和“地址空间”的概念结合在一起。线程主要由保存的寄存器(env_tf 字段)定义，地址空间由 env_pgdir 指向的页面目录和页面表定义。为了运行一个环境，内核必须使用保存的寄存器和适当的地址空间来设置 CPU。
 
-Our struct Env is analogous to struct proc in xv6. Both structures hold the environment's (i.e., process's) user-mode register state in a Trapframe structure. In JOS, individual environments do not have their own kernel stacks as processes do in xv6. There can be only one JOS environment active in the kernel at a time, so JOS needs only a single kernel stack.
+我们的 struct Env 类似于 xv6 中的 struct proc。这两种结构都以 Trapframe 结构保存环境(即进程)的用户模式寄存器状态。在 JOS 中，各个环境不像 xv6 中的进程那样有自己的内核堆栈。在内核中，一次只能有一个活动的 JOS 环境，因此 JOS 只需要一个内核堆栈。
 
-### Allocating the Environments Array
+### 为环境数组申请内存
 
-In lab 2, you allocated memory in mem_init() for the pages[] array, which is a table the kernel uses to keep track of which pages are free and which are not. You will now need to modify mem_init() further to allocate a similar array of Env structures, called envs.
+在实验室 2 中，您在 mem_init()中为 pages[]数组分配了内存，这是一个表，内核使用它来跟踪哪些页面是空闲的，哪些不是。现在需要进一步修改 mem_init()来分配一个类似的 Env 结构数组，称为 envs。
 
-Exercise 1. Modify mem_init() in kern/pmap.c to allocate and map the envs array. This array consists of exactly NENV instances of the Env structure allocated much like how you allocated the pages array. Also like the pages array, the memory backing envs should also be mapped user read-only at UENVS (defined in inc/memlayout.h) so user processes can read from this array.
+练习 1：修改 kern/pmap.c 中的 mem_init()来分配和映射 envs 数组。这个数组由 NENV 个 Env 结构体组成，分配内存的方式很像你给 pages 数组分配内存的方式。同样如 pages 数组一样，envs 的内存应该被映射到 UENVS (定义在 inc/memlayout.h 中)，并设为用户只读，这样用户进程可以从这个数组中读取数据。
 
-You should run your code and make sure check_kern_pgdir() succeeds.
+您应该运行代码并确保 check_kern_pgdir()成功。
 
-### Creating and Running Environments
+### 创建及运行环境
+
+现在，您将在 kern/env.c 中编写运行用户环境所必需的代码。因为我们还没有文件系统，所以我们将设置内核来加载嵌入到内核本身中的静态二进制映像。JOS 将该二进制文件作为 ELF 可执行映像嵌入到内核中。
+
+Lab 3 GNUmakefile 在 obj/user/目录中生成许多二进制图像。如果您查看 kern/Makefrag，您会注意到一些神奇的东西，将这些二进制文件直接“链接”到内核可执行文件中，就像它们是.o 文件一样。链接器命令行上的-b 二进制选项导致这些文件被链接为“原始的”未解释的二进制文件，而不是编译器生成的常规的.o 文件。(就链接器而言，这些文件根本不必是 ELF 图像——它们可以是任何文件，例如文本文件或图片!)如果你看 obj/kern/kernel。Sym 在构建完内核后，你会注意到链接器“神奇地”生成了许多有趣的符号，它们的名字晦涩难懂，比如\_binary_obj_user_hello_start、\_binary_obj_user_hello_end 和\_binary_obj_user_hello_size。链接器通过修改二进制文件的文件名来生成这些符号名;这些符号为常规内核代码提供了一种引用嵌入二进制文件的方式。
+
+在 kern/init.c 中的 i386_init()中，您将看到在环境中运行这些二进制映像之一的代码。然而，建立用户环境的关键功能还不完整;你需要把它们填上。
 
 You will now write the code in kern/env.c necessary to run a user environment. Because we do not yet have a filesystem, we will set up the kernel to load a static binary image that is embedded within the kernel itself. JOS embeds this binary in the kernel as a ELF executable image.
 
