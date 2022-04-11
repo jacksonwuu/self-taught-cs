@@ -16,7 +16,7 @@ Note: Many posts are still draft.
 
 -   [MIT 6.824 Distributed Systems (2020)](http://nil.lcs.mit.edu/6.824/2020/schedule.html)
 
--   [CMU 15-721 Advanced Database Systems (2020 Spring)](https://15721.courses.cs.cmu.edu/spring2020/schedule.html)
+-   [CMU 15-445/645 Database Systems (2021 Fall)](https://15445.courses.cs.cmu.edu/fall2021/schedule.html)/[CMU 15-721 Advanced Database Systems (2020 Spring)](https://15721.courses.cs.cmu.edu/spring2020/schedule.html)
 
 -   [SU CS144 Computer Network](https://cs144.github.io/)
 
