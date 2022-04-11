@@ -2,31 +2,31 @@
 
 ## 介绍
 
-This lab is split into three parts. The first part concentrates on getting familiarized with x86 assembly language, the QEMU x86 emulator, and the PC's power-on bootstrap procedure. The second part examines the boot loader for our 6.828 kernel, which resides in the boot directory of the lab tree. Finally, the third part delves into the initial template for our 6.828 kernel itself, named JOS, which resides in the kernel directory.
+这个实验室分成三个部分。第一部分主要介绍如何熟悉 x86 汇编语言、QEMU x86 仿真器和 PC 的开机引导程序。第二部分检查 6.828 内核的引导加载程序，它位于实验 boot 目录中。最后，第三部分研究了 6.828 内核本身的初始模板，名为 JOS，它位于 kernel 目录中。
 
 ## Part 1: PC Bootstrap
 
-The purpose of the first exercise is to introduce you to x86 assembly language and the PC bootstrap process, and to get you started with QEMU and QEMU/GDB debugging. You will not have to write any code for this part of the lab, but you should go through it anyway for your own understanding and be prepared to answer the questions posed below.
+第一个练习的目的是向您介绍 x86 汇编语言和 PC 引导过程，并让您开始 QEMU 和 QEMU/GDB 调试。您不需要为实验室的这一部分编写任何代码，但您应该根据自己的理解仔细阅读它，并准备好回答下面提出的问题。
 
 ### Getting Started with x86 assembly
 
-If you are not already familiar with x86 assembly language, you will quickly become familiar with it during this course! The [PC Assembly Language Book](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf) is an excellent place to start. Hopefully, the book contains mixture of new and old material for you.
+如果你没有太熟悉 x86 汇编语言，你会在这个课程里很快对它熟悉！[PC Assembly Language Book](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf)是个绝佳的开始点。这个书包含了新旧材料。
 
-Warning: Unfortunately the examples in the book are written for the NASM assembler, whereas we will be using the GNU assembler. NASM uses the so-called Intel syntax while GNU uses the AT&T syntax. While semantically equivalent, an assembly file will differ quite a lot, at least superficially, depending on which syntax is used. Luckily the conversion between the two is pretty simple, and is covered in [Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html).
+警告：非常不幸的是书里的例子都是用 NASM 汇编器，但是我们会用 GNU 汇编器。NASM 使用所谓的 Intel 语法，但是 GNU 使用 AT&T 语法。然而语法上都是等价的，用不同语法写的汇编从表面上看会非常不一样。幸运的是这两种语法非常简单，这本书有讲到：[Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html)。
 
-Exercise 1. Familiarize yourself with the assembly language materials available on [the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html). You don't have to read them now, but you'll almost certainly want to refer to some of this material when reading and writing x86 assembly.
+练习 1：熟悉[the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html)里的汇编语言材料。你现在不需要都读，但是在读写 x86 汇编程序集时，你几乎肯定会想要参考其中一些资料。
 
-We do recommend reading the section "The Syntax" in [Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html). It gives a good (and quite brief) description of the AT&T assembly syntax we'll be using with the GNU assembler in JOS.
+我们确实推荐阅读[Brennan's Guide to Inline Assembly](http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html)的"The Syntax"部分。它很好地描述了 AT&T 汇编语法，我们会在 JOS 里用到的。
 
-Certainly the definitive reference for x86 assembly language programming is Intel's instruction set architecture reference, which you can find on [the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html) in two flavors: an HTML edition of the old [80386 Programmer's Reference Manual](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm), which is much shorter and easier to navigate than more recent manuals but describes all of the x86 processor features that we will make use of in 6.828; and the full, latest and greatest [IA-32 Intel Architecture Software Developer's Manuals](http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html) from Intel, covering all the features of the most recent processors that we won't need in class but you may be interested in learning about. An equivalent (and often friendlier) set of manuals is [available from AMD](http://developer.amd.com/resources/developer-guides-manuals/). Save the Intel/AMD architecture manuals for later or use them for reference when you want to look up the definitive explanation of a particular processor feature or instruction.
+当然，x86 汇编语言编程的权威参考是 Intel 的指令集架构参考，你可以在[the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html)中找到两种风格：旧的[80386 Programmer's Reference Manual](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm)的 HTML 版本，比最近的手册更短，更容易浏览，但描述了我们将在 6.828 中使用的所有 x86 处理器特性；和完整的、最新的和最好的[IA-32 Intel Architecture Software Developer's Manuals](http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html)从英特尔，涵盖所有最新的处理器的特点，我们不需要在课堂上使用，但你可能会对感兴趣学习。同样的(通常更友好的)一套手册[available from AMD](http://developer.amd.com/resources/developer-guides-manuals/)。将 Intel/AMD 架构手册保存起来，以备以后使用，或者当你想要查找特定处理器特性或指令的明确解释时，将其作为参考。
 
-### Simulating the x86
+### 模拟 x86
 
-Instead of developing the operating system on a real, physical personal computer (PC), we use a program that faithfully emulates a complete PC: the code you write for the emulator will boot on a real PC too. Using an emulator simplifies debugging; you can, for example, set break points inside of the emulated x86, which is difficult to do with the silicon version of an x86.
+我们不是在真实的、实际的个人计算机(PC)上开发操作系统，而是使用一个程序来忠实地模拟一个完整的 PC：您为模拟器编写的代码也将在真实的 PC 上启动。使用模拟器简化了调试；例如，您可以在模拟的 x86 中设置断点，这在 x86 的硅版中很难做到。
 
-In 6.828 we will use the [QEMU Emulator](http://www.qemu.org/), a modern and relatively fast emulator. While QEMU's built-in monitor provides only limited debugging support, QEMU can act as a remote debugging target for the [GNU debugger (GDB)](http://www.gnu.org/software/gdb/), which we'll use in this lab to step through the early boot process.
+在 6.828 中，我们将使用[QEMU 模拟器](http://www.qemu.org/)，这是一个现代且相对快速的模拟器。虽然 QEMU 的内置监视器只提供有限的调试支持，但 QEMU 可以充当[GNU 调试器(GDB)](http://www.gnu.org/software/gdb/)的远程调试目标，我们将在本实验中使用它来逐步完成早期引导过程。
 
-To get started, extract the Lab 1 files into your own directory on Athena as described above in "Software Setup", then type make (or gmake on BSD systems) in the lab directory to build the minimal 6.828 boot loader and kernel you will start with. (It's a little generous to call the code we're running here a "kernel," but we'll flesh it out throughout the semester.)
+首先，将 Lab 1 文件解压缩到 Athena 上您自己的目录中，如“软件安装”中所述，然后在 Lab 目录中输入 make(或 BSD 系统上的 gmake)，以构建最小的 6.828 引导加载程序和内核。(把我们在这里运行的代码称为“内核”有点慷慨，但我们将在整个学期充实它。)
 
 ```
 athena% cd lab
