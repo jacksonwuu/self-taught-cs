@@ -408,58 +408,62 @@ GCC 的内联汇编器会自动保存那些你告诉它要直接载入值的寄�
 
 当我们在下一个实验室启用异步中断时，你可能需要重新查看你的代码。具体来说，您需要在返回到用户进程时启用中断，而 sysexit 没有为您做到这一点。
 
-### User-mode startup
+### 用户态启动
 
-A user program starts running at the top of lib/entry.S. After some setup, this code calls libmain(), in lib/libmain.c. You should modify libmain() to initialize the global pointer thisenv to point at this environment's struct Env in the envs[] array. (Note that lib/entry.S has already defined envs to point at the UENVS mapping you set up in Part A.) Hint: look in inc/env.h and use sys_getenvid.
+一个用户程序从 lib/entry.S 的顶部开始运行。经过一些设置后，这段代码在 lib/libmain.c 中调用 libmain()。你应该修改 libmain()来初始化全局指针 thisenv，使其指向 Env[]数组中的结构体 Env。（注意，lib/entry.S 已经定义了 env 来指向你在 A 部分设置的 UENVS 映射）提示：查找 inc/env.h 并使用 sys_getenvid。
 
-libmain() then calls umain, which, in the case of the hello program, is in user/hello.c. Note that after printing "hello, world", it tries to access thisenv->env_id. This is why it faulted earlier. Now that you've initialized thisenv properly, it should not fault. If it still faults, you probably haven't mapped the UENVS area user-readable (back in Part A in pmap.c; this is the first time we've actually used the UENVS area).
+libmain() 然后调用 umain，在 hello 程序中，umain 位于 user/hello.c 中。请注意，在打印“hello, world”之后，它会尝试访问这个 env->env_id。这就是它早些时候出错的原因。现在你已经正确地初始化了这个 env，它应该不会出错。如果它仍然出错，你可能还没有映射用户可读的 UENVS 区域(回到 pmap.c 中的 A 部分；这是我们第一次实际使用 UENVS 区域)。
 
-Exercise 8. Add the required code to the user library, then boot your kernel. You should see user/hello print "hello, world" and then print "i am environment 00001000". user/hello then attempts to "exit" by calling sys_env_destroy() (see lib/libmain.c and lib/exit.c). Since the kernel currently only supports one user environment, it should report that it has destroyed the only environment and then drop into the kernel monitor. You should be able to get make grade to succeed on the hello test.
+练习 8：将所需的代码添加到用户库中，然后引导内核。你应该看到 user/hello 打印“hello, world”，然后打印“i am environment 00001000”。user/hello 然后通过调用 sys_env_destroy()尝试“退出”(参见 lib/libmain.c 和 lib/exit.c)。由于内核目前只支持一个用户环境，它应该报告它已经破坏了唯一的环境，然后进入内核监视器。你应该可以 make grade 通过 hello 测试。
 
-### Page faults and memory protection
+### 页错误和内存保护
 
-Memory protection is a crucial feature of an operating system, ensuring that bugs in one program cannot corrupt other programs or corrupt the operating system itself.
+内存保护是操作系统的一个关键特性，它确保一个程序中的错误不会破坏其他程序或破坏操作系统本身。
 
-Operating systems usually rely on hardware support to implement memory protection. The OS keeps the hardware informed about which virtual addresses are valid and which are not. When a program tries to access an invalid address or one for which it has no permissions, the processor stops the program at the instruction causing the fault and then traps into the kernel with information about the attempted operation. If the fault is fixable, the kernel can fix it and let the program continue running. If the fault is not fixable, then the program cannot continue, since it will never get past the instruction causing the fault.
+操作系统通常依赖硬件支持来实现内存保护。操作系统会通知硬件哪些虚拟地址有效，哪些无效。当一个程序试图访问一个无效的地址或一个它没有权限的地址时，处理器在导致错误的指令处停止程序，然后将有关尝试操作的信息捕获到内核中。如果故障是可修复的，内核可以修复它并让程序继续运行。如果错误是不可修复的，那么程序就不能继续，因为它永远无法通过导致错误的指令。
 
-As an example of a fixable fault, consider an automatically extended stack. In many systems the kernel initially allocates a single stack page, and then if a program faults accessing pages further down the stack, the kernel will allocate those pages automatically and let the program continue. By doing this, the kernel only allocates as much stack memory as the program needs, but the program can work under the illusion that it has an arbitrarily large stack.
+作为一个可修复错误的例子，考虑一个自动扩展的堆栈。在许多系统中，内核最初分配单个堆栈页，然后如果程序在访问堆栈下部的页面时出错，内核将自动分配这些页面，并让程序继续。通过这样做，内核只分配程序所需的堆栈内存，但是程序可以在它有任意大的堆栈的错觉下工作。
 
-System calls present an interesting problem for memory protection. Most system call interfaces let user programs pass pointers to the kernel. These pointers point at user buffers to be read or written. The kernel then dereferences these pointers while carrying out the system call. There are two problems with this:
+系统调用为内存保护提出了一个有趣的问题。大多数系统调用接口允许用户程序向内核传递指针。这些指针指向要读或写的用户缓冲区。然后内核在执行系统调用时对这些指针取值。这有两个问题：
 
-1. A page fault in the kernel is potentially a lot more serious than a page fault in a user program. If the kernel page-faults while manipulating its own data structures, that's a kernel bug, and the fault handler should panic the kernel (and hence the whole system). But when the kernel is dereferencing pointers given to it by the user program, it needs a way to remember that any page faults these dereferences cause are actually on behalf of the user program.
-2. The kernel typically has more memory permissions than the user program. The user program might pass a pointer to a system call that points to memory that the kernel can read or write but that the program cannot. The kernel must be careful not to be tricked into dereferencing such a pointer, since that might reveal private information or destroy the integrity of the kernel.
+1. 内核中的页面错误可能比用户程序中的页面错误严重得多。如果内核在操作自己的数据结构时出现页面错误，那就是内核错误，错误处理程序应该使内核(从而使整个系统)panic。但是当内核对用户程序给它的指针取值时，它需要一种方法来记住，这些取值导致的任何页面错误实际上是代表用户程序的。
+2. 内核通常比用户程序拥有更多的内存权限。用户程序可以传递一个指向系统调用的指针，该指针指向内核可以读或写但程序不能读的内存。内核必须小心，不要被骗去对这样的指针取值，因为这可能会暴露私有信息或破坏内核的完整性。
 
-For both of these reasons the kernel must be extremely careful when handling pointers presented by user programs.
+对于这两种原因，内核在处理用户程序的指针时必须极度小心。
 
-You will now solve these two problems with a single mechanism that scrutinizes all pointers passed from userspace into the kernel. When a program passes the kernel a pointer, the kernel will check that the address is in the user part of the address space, and that the page table would allow the memory operation.
+现在，您将使用一种机制来解决这两个问题，该机制将仔细检查从用户空间传递到内核的所有指针。当一个程序向内核传递一个指针时，内核将检查该地址是否在地址空间的用户部分，以及页表是否允许进行内存操作。
 
-Thus, the kernel will never suffer a page fault due to dereferencing a user-supplied pointer. If the kernel does page fault, it should panic and terminate.
+因此，内核不会因为取值用户提供的指针而出现页面错误。如果内核发生了页面错误，它应该 panic 并终止。
 
-Exercise 9. Change kern/trap.c to panic if a page fault happens in kernel mode.
+练习 9：改变 kern/trap.c，使得如果内核态里出现页错误时就 panic。
 
-Hint: to determine whether a fault happened in user mode or in kernel mode, check the low bits of the tf_cs.
+提示：为了判断一个错误出现在用户态还是内核态，查看 tf_cs 的低位。
 
-Read user_mem_assert in kern/pmap.c and implement user_mem_check in that same file.
+阅读 kern/pmap.c 里的 user_mem_assert，并实现该文件里的 user_mem_check。
 
-Change kern/syscall.c to sanity check arguments to system calls.
+修改 kern/syscall.c 来对系统调用的参数进行完整性检查。
 
-Boot your kernel, running user/buggyhello. The environment should be destroyed, and the kernel should not panic. You should see:
+引导你的内核，运行 user/buggyhello。环境应该会被摧毁掉，内核应该 panic。你应该看到：
 
+```
     [00001000] user_mem_check assertion failure for va 00000001
     [00001000] free env 00001000
     Destroyed the only environment - nothing more to do!
+```
 
-Finally, change debuginfo_eip in kern/kdebug.c to call user_mem_check on usd, stabs, and stabstr. If you now run user/breakpoint, you should be able to run backtrace from the kernel monitor and see the backtrace traverse into lib/libmain.c before the kernel panics with a page fault. What causes this page fault? You don't need to fix it, but you should understand why it happens.
+最后，修改 kern/kdebug.c 中的 debuginfo_eip，在 usd、stab 和 stabstr 上调用 user_mem_check。如果您现在运行 user/breakpoint，您应该能够从内核监视器运行回溯，并在内核出现页面错误之前看到回溯遍历到 lib/libmain.c 的过程。什么原因导致这个页面错误？你不需要修复它，但你应该理解它为什么会发生。
 
-Note that the same mechanism you just implemented also works for malicious user applications (such as user/evilhello).
+注意，刚才实现的机制也适用于恶意用户应用程序(如 user/evilhello)。
 
-Exercise 10. Boot your kernel, running user/evilhello. The environment should be destroyed, and the kernel should not panic. You should see:
+练习 10：启动内核，运行 user/evilhello。环境应该被破坏，内核也不应该 panic。您应该看到：
 
+```
     [00000000] new env 00001000
     ...
     [00001000] user_mem_check assertion failure for va f010000c
     [00001000] free env 00001000
+```
 
-This completes the lab. Make sure you pass all of the make grade tests and don't forget to write up your answers to the questions and a description of your challenge exercise solution in answers-lab3.txt. Commit your changes and type make handin in the lab directory to submit your work.
+这就完成了本实验。确保你通过了所有的 make grade 测试，不要忘记在 answers-lab3.txt 中写下你的问题的答案和你的挑战练习解决方案的描述。提交您的更改并在 lab 目录中键入 make handin 以提交您的工作。
 
-Before handing in, use git status and git diff to examine your changes and don't forget to git add answers-lab3.txt. When you're ready, commit your changes with git commit -am 'my solutions to lab 3', then make handin and follow the directions.
+在上交之前，使用 git status 和 git diff 检查你的更改，不要忘记 git add answers-lab3.txt。当你准备好了，用 git commit -am 'my solutions to lab 3'提交你的更改，然后进行提交并遵循指示。
