@@ -8,7 +8,7 @@
 
 第一个练习的目的是向您介绍 x86 汇编语言和 PC 引导过程，并让您开始 QEMU 和 QEMU/GDB 调试。您不需要为实验室的这一部分编写任何代码，但您应该根据自己的理解仔细阅读它，并准备好回答下面提出的问题。
 
-### Getting Started with x86 assembly
+### 从 x86 汇编开始
 
 如果你没有太熟悉 x86 汇编语言，你会在这个课程里很快对它熟悉！[PC Assembly Language Book](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf)是个绝佳的开始点。这个书包含了新旧材料。
 
@@ -49,9 +49,9 @@ boot block is 380 bytes (max 510)
 + mk obj/kern/kernel.img
 ```
 
-(If you get errors like "undefined reference to `\_\_udivdi3'", you probably don't have the 32-bit gcc multilib. If you're running Debian or Ubuntu, try installing the gcc-multilib package.)
+(如果你得到像“undefined reference to '\_\_udivdi3'”这样的错误，你可能没有 32 位的 gcc multilib。如果你正在 Debian 或 Ubuntu 上运行，尝试安装 gcc-multilib 包。)
 
-Now you're ready to run QEMU, supplying the file obj/kern/kernel.img, created above, as the contents of the emulated PC's "virtual hard disk." This hard disk image contains both our boot loader (obj/boot/boot) and our kernel (obj/kernel).
+现在您已经准备好运行 QEMU，并提供文件 obj/kern/kernel.img，创建在上面，作为模拟 PC 的“虚拟硬盘”的内容。这个硬盘映像包含我们的引导加载程序(obj/boot/boot)和我们的内核(obj/kernel)。
 
 ```
 athena% make qemu
@@ -59,7 +59,7 @@ or
 athena% make qemu-nox
 ```
 
-This executes QEMU with the options required to set the hard disk and direct serial port output to the terminal. Some text should appear in the QEMU window:
+这将执行 QEMU，其中包含设置硬盘和直接串口输出到终端所需的选项。一些文本应该出现在 QEMU 窗口：
 
 ```
 Booting from Hard Disk...
@@ -81,9 +81,9 @@ Type 'help' for a list of commands.
 K>
 ```
 
-Everything after 'Booting from Hard Disk...' was printed by our skeletal JOS kernel; the K> is the prompt printed by the small monitor, or interactive control program, that we've included in the kernel. If you used make qemu, these lines printed by the kernel will appear in both the regular shell window from which you ran QEMU and the QEMU display window. This is because for testing and lab grading purposes we have set up the JOS kernel to write its console output not only to the virtual VGA display (as seen in the QEMU window), but also to the simulated PC's virtual serial port, which QEMU in turn outputs to its own standard output. Likewise, the JOS kernel will take input from both the keyboard and the serial port, so you can give it commands in either the VGA display window or the terminal running QEMU. Alternatively, you can use the serial console without the virtual VGA by running make qemu-nox. This may be convenient if you are SSH'd into an Athena dialup. To quit qemu, type Ctrl+a x.
+‘Booting from Hard Disk...’之后的一切都是我们的 JOS 内核打印的；K> 是由我们在内核中包含的小监视器或交互式控制程序打印的提示符。如果执行 make qemu，内核打印的这些行将出现在运行 qemu 的常规 shell 窗口和 qemu 显示窗口中。这是因为测试和打分的目的，我们设立了 JOS 内核写它的控制台输出不仅在虚拟 VGA 显示(见 QEMU 窗口)，而且模拟电脑的虚拟串口，QEMU 反过来输出自己的标准输出。类似地，JOS 内核将从键盘和串口接受输入，因此您可以在 VGA 显示窗口或运行 QEMU 的终端中向它提供命令。或者，您可以通过运行 make qemu-nox 在没有虚拟 VGA 的情况下使用串行控制台。这可能是方便的，如果你是 SSH 进入一个 Athena 拨号。要退出 qemu，输入 Ctrl+a x。
 
-There are only two commands you can give to the kernel monitor, help and kerninfo.
+内核监视器只有两个命令可以用，help 和 kerninfo。
 
 ```
 K> help
@@ -99,11 +99,11 @@ Kernel executable memory footprint: 75KB
 K>
 ```
 
-The help command is obvious, and we will shortly discuss the meaning of what the kerninfo command prints. Although simple, it's important to note that this kernel monitor is running "directly" on the "raw (virtual) hardware" of the simulated PC. This means that you should be able to copy the contents of obj/kern/kernel.img onto the first few sectors of a real hard disk, insert that hard disk into a real PC, turn it on, and see exactly the same thing on the PC's real screen as you did above in the QEMU window. (We don't recommend you do this on a real machine with useful information on its hard disk, though, because copying kernel.img onto the beginning of its hard disk will trash the master boot record and the beginning of the first partition, effectively causing everything previously on the hard disk to be lost!)
+help 命令很明显，我们将很快讨论 kerninfo 命令输出的含义。虽然很简单，但需要注意的是，这个内核监控器“直接”运行在模拟 PC 的“原始(虚拟)硬件”上。这意味着你应该能够复制 obj/kern/kernel 的内容。将硬盘插入真正的 PC，打开它，并在 PC 的真实屏幕上看到与您在上面的 QEMU 窗口中所做的完全相同的事情。(但是，我们不建议您在硬盘上有有用信息的真正机器上这样做，因为复制 kernel.img 添加到其硬盘的开始部分将回收主引导记录和第一个分区的开始部分，从而有效地导致硬盘上之前的所有内容丢失！)
 
-### The PC's Physical Address Space
+### PC 的物理地址空间
 
-We will now dive into a bit more detail about how a PC starts up. A PC's physical address space is hard-wired to have the following general layout:
+现在我们将更详细地介绍一下 PC 是如何启动的。PC 机的物理地址空间是硬连接的，有以下总体布局：
 
 ```
 
@@ -138,19 +138,19 @@ We will now dive into a bit more detail about how a PC starts up. A PC's physica
 +------------------+  <- 0x00000000
 ```
 
-The first PCs, which were based on the 16-bit Intel 8088 processor, were only capable of addressing 1MB of physical memory. The physical address space of an early PC would therefore start at 0x00000000 but end at 0x000FFFFF instead of 0xFFFFFFFF. The 640KB area marked "Low Memory" was the only random-access memory (RAM) that an early PC could use; in fact the very earliest PCs only could be configured with 16KB, 32KB, or 64KB of RAM!
+第一代 PC 基于 16 位 Intel 8088 处理器，只能寻址 1MB 的物理内存。因此，早期 PC 的物理地址空间将从 0x00000000 开始，到 0x000FFFFF 结束，而不是 0xFFFFFFFF。标记为“低内存”的 640KB 区域是早期 PC 能够使用的唯一随机访问内存(RAM)；事实上，最早的电脑只能配置 16KB、32KB 或 64KB 的内存!
 
-The 384KB area from 0x000A0000 through 0x000FFFFF was reserved by the hardware for special uses such as video display buffers and firmware held in non-volatile memory. The most important part of this reserved area is the Basic Input/Output System (BIOS), which occupies the 64KB region from 0x000F0000 through 0x000FFFFF. In early PCs the BIOS was held in true read-only memory (ROM), but current PCs store the BIOS in updateable flash memory. The BIOS is responsible for performing basic system initialization such as activating the video card and checking the amount of memory installed. After performing this initialization, the BIOS loads the operating system from some appropriate location such as floppy disk, hard disk, CD-ROM, or the network, and passes control of the machine to the operating system.
+从 0x000A0000 到 0x000FFFFF 的 384KB 区域由硬件预留，用于特殊用途，如视频显示缓冲区和非易失性内存中的固件。这个保留区域中最重要的部分是 Basic Input/Output System (BIOS)，它占用了从 0x000F0000 到 0x000FFFFF 的 64KB 区域。在早期的 pc 中，BIOS 保存在真正的只读存储器(ROM)中，但现在的 PC 将 BIOS 存储在可更新的闪存中。BIOS 主要负责对系统进行基本的初始化操作，如激活显卡、检查内存总量等。执行这个初始化之后，BIOS 从一些适当的位置(如软盘、硬盘、CD-ROM 或网络)加载操作系统，并将机器的控制权传递给操作系统。
 
-When Intel finally "broke the one megabyte barrier" with the 80286 and 80386 processors, which supported 16MB and 4GB physical address spaces respectively, the PC architects nevertheless preserved the original layout for the low 1MB of physical address space in order to ensure backward compatibility with existing software. Modern PCs therefore have a "hole" in physical memory from 0x000A0000 to 0x00100000, dividing RAM into "low" or "conventional memory" (the first 640KB) and "extended memory" (everything else). In addition, some space at the very top of the PC's 32-bit physical address space, above all physical RAM, is now commonly reserved by the BIOS for use by 32-bit PCI devices.
+当 Intel 最终用 80286 和 80386 处理器“突破了 1MB 的障碍”，它们分别支持 16MB 和 4GB 的物理地址空间，PC 架构师仍然保留了原始的 1MB 物理地址空间布局，以确保与现有软件的向后兼容性。因此，现代 PC 在物理内存中有一个从 0x000A0000 到 0x00100000 的“洞”，将 RAM 划分为“低内存”或“常规内存”(前 640KB)和“扩展内存”(其他一切)。此外，PC 的 32 位物理地址空间(尤其是物理 RAM)顶部的一些空间现在通常由 BIOS 保留，供 32 位 PCI 设备使用。
 
-Recent x86 processors can support more than 4GB of physical RAM, so RAM can extend further above 0xFFFFFFFF. In this case the BIOS must arrange to leave a second hole in the system's RAM at the top of the 32-bit addressable region, to leave room for these 32-bit devices to be mapped. Because of design limitations JOS will use only the first 256MB of a PC's physical memory anyway, so for now we will pretend that all PCs have "only" a 32-bit physical address space. But dealing with complicated physical address spaces and other aspects of hardware organization that evolved over many years is one of the important practical challenges of OS development.
+最近的 x86 处理器可以支持超过 4GB 的物理 RAM，所以 RAM 可以扩展到 0xFFFFFFFF 以上。在这种情况下，BIOS 必须安排在系统 RAM 的 32 位可寻址区域的顶部留下第二个洞，为这些 32 位设备的映射留下空间。由于设计限制，JOS 将只使用 PC 的物理内存的前 256MB，所以现在我们假设所有 PC 都“只有”一个 32 位的物理地址空间。但是处理复杂的物理地址空间和硬件组织的其他方面是操作系统开发的一个重要的实际挑战。
 
 ### The ROM BIOS
 
-In this portion of the lab, you'll use QEMU's debugging facilities to investigate how an IA-32 compatible computer boots.
+在本部分中，您将使用 QEMU 的调试工具来研究 IA-32 兼容的计算机是如何引导的。
 
-Open two terminal windows and cd both shells into your lab directory. In one, enter make qemu-gdb (or make qemu-nox-gdb). This starts up QEMU, but QEMU stops just before the processor executes the first instruction and waits for a debugging connection from GDB. In the second terminal, from the same directory you ran make, run make gdb. You should see something like this,
+打开两个终端窗口并将两个 shell cd 到您的实验室目录中。其中，输入 make qemu-gdb(或 make qemu-nox-gdb)。这将启动 QEMU，但是 QEMU 在处理器执行第一个指令之前停止，并等待来自 GDB 的调试连接。在第二个终端中，在运行 make 的同一个目录运行 make gdb。你应该看到这样的东西，
 
 ```
 athena% make gdb
@@ -169,23 +169,23 @@ The target architecture is assumed to be i8086
 (gdb)
 ```
 
-We provided a .gdbinit file that set up GDB to debug the 16-bit code used during early boot and directed it to attach to the listening QEMU. (If it doesn't work, you may have to add an add-auto-load-safe-path in your .gdbinit in your home directory to convince gdb to process the .gdbinit we provided. gdb will tell you if you have to do this.)
+我们提供了一个.gdbinit 文件，该文件设置 GDB 来调试早期引导期间使用的 16 位代码，并将其附加到侦听的 QEMU 上。(如果它不能工作，你可能必须在你的主目录的.gdbinit 中添加一个 add-auto-load-safe-path，来让 GDB 处理我们提供的.gdbinit。GDB 会告诉您是否必须这样做。)
 
-The following line:
+以下行:
 
 ```
 [f000:fff0] 0xffff0:	ljmp   $0xf000,$0xe05b
 ```
 
-is GDB's disassembly of the first instruction to be executed. From this output you can conclude a few things:
+是 GDB 反汇编第一行执行的指令。从输出端你可以得到一些结论：
 
--   The IBM PC starts executing at physical address 0x000ffff0, which is at the very top of the 64KB area reserved for the ROM BIOS.
--   The PC starts executing with CS = 0xf000 and IP = 0xfff0.
--   The first instruction to be executed is a jmp instruction, which jumps to the segmented address CS = 0xf000 and IP = 0xe05b.
+-   IBM PC 在物理地址 0x000ffff0 处开始执行，也就是位 BIOS ROM 预留的 64KB 的最顶端。
+-   PC 开始执行时 CS = 0xf000，IP = 0xfff0。
+-   第一个执行的指令是 jmp 指令，它会跳转到 CS = 0xf000 和 IP = 0xe05b 处。
 
-Why does QEMU start like this? This is how Intel designed the 8088 processor, which IBM used in their original PC. Because the BIOS in a PC is "hard-wired" to the physical address range 0x000f0000-0x000fffff, this design ensures that the BIOS always gets control of the machine first after power-up or any system restart - which is crucial because on power-up there is no other software anywhere in the machine's RAM that the processor could execute. The QEMU emulator comes with its own BIOS, which it places at this location in the processor's simulated physical address space. On processor reset, the (simulated) processor enters real mode and sets CS to 0xf000 and the IP to 0xfff0, so that execution begins at that (CS:IP) segment address. How does the segmented address 0xf000:fff0 turn into a physical address?
+QEMU 为什么会这样开始呢？英特尔就是这样设计 8088 处理器的，IBM 在他们最初的个人电脑中使用了这种处理器。因为在 PC BIOS 被“硬接线”到物理地址范围 0x000f0000-0x000fffff 处，这种设计可以确保机器的 BIOS 总是在开启或系统重启时第一个获得控制权——这是至关重要的，因为在 RAM 里没有软件可以执行。QEMU 模拟器自己自带的 BIOS，它将 BIOS 放置在处理器模拟物理地址空间的这个位置。处理器复位时，(模拟)处理器进入实模式，并将 CS 设置为 0xf000, IP 设置为 0xfff0，因此执行从那个(CS:IP)段地址开始。分段地址 0xf000:fff0 如何变成物理地址？
 
-To answer that we need to know a bit about real mode addressing. In real mode (the mode that PC starts off in), address translation works according to the formula: physical address = 16 \* segment + offset. So, when the PC sets CS to 0xf000 and IP to 0xfff0, the physical address referenced is:
+为了回答这个问题，我们需要了解一些关于实际模式寻址的知识。在实模式下(PC 启动的模式)，地址转换按如下公式进行：物理地址= 16\*段+偏移量。因此，当 PC 将 CS 设置为 0xf000, IP 设置为 0xfff0 时，所引用的物理地址为:
 
 ```
    16 * 0xf000 + 0xfff0   # in hex multiplication by 16 is
