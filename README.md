@@ -20,6 +20,11 @@ Note: Many posts are still draft.
 
 -   [SU CS144 Computer Network](https://cs144.github.io/)
 
+### What I am Reading right now?
+
+-   [Introduction to Algorithms](https://en.wikipedia.org/wiki/Introduction_to_Algorithms) by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein
+-   [Modern Operating Systems](https://en.wikipedia.org/wiki/Modern_Operating_Systems) by Andrew S. Tanenbaum
+
 ### The key of self learning these courses
 
 Every courses will cost about 100 to 200 hours to finish. Keep patient, keep curiosity, just learning every day, you will find you finish some courses some day.
