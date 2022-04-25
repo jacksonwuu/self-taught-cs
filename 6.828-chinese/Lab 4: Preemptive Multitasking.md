@@ -75,11 +75,11 @@ boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式
 
     除此之外，如果你在你的解决方案中添加了任何额外的每 CPU 状态或执行了任何额外的特定于 CPU 的初始化（比如，在 CPU 寄存器中设置新位）以挑战早期实验室中的问题，请确保每个 CPU 上都复制了它们。
 
-Exercise 3. Modify mem_init_mp() (in kern/pmap.c) to map per-CPU stacks starting at KSTACKTOP, as shown in inc/memlayout.h. The size of each stack is KSTKSIZE bytes plus KSTKGAP bytes of unmapped guard pages. Your code should pass the new check in check_kern_pgdir().
+练习 3。修改 kern/pmap.c 里的 mem_init_mp()，使其映射每个 CPU 栈到 KSTACKTOP 的初始位置，正如 inc/memlayout.h 里展示的那样。每个堆栈的大小是 KSTKSIZE 字节加上未映射保护页的 KSTKGAP 字节。您的代码应该通过新测试 check_kern_pgdir()。
 
-Exercise 4. The code in trap_init_percpu() (kern/trap.c) initializes the TSS and TSS descriptor for the BSP. It worked in Lab 3, but is incorrect when running on other CPUs. Change the code so that it can work on all CPUs. (Note: your new code should not use the global ts variable any more.)
+练习 4。trap_init_percpu()（位于 kern/trap.c）里的代码为 BSP 初始化 TSS 和 TSS 描述符。这个函数可以在实验三里正常运行，但是它在其他 CPU 上运行就会出错。修改代码，让它可以在所有的 CPU 上运行。（注意：你的新代码不应该再使用全局 ts 变量。）
 
-When you finish the above exercises, run JOS in QEMU with 4 CPUs using make qemu CPUS=4 (or make qemu-nox CPUS=4), you should see output like this:
+当你完成了以上练习，在 QEMU 中以用 4 个 CPU 来运行 JOS，`make qemu CPUS=4`或者`make qemu-nox CPUS=4`，你应该可以看到这样的输出：
 
 ```
 ...
@@ -95,26 +95,26 @@ SMP: CPU 2 starting
 SMP: CPU 3 starting
 ```
 
-#### Locking
+#### Locking（锁）
 
-Our current code spins after initializing the AP in mp_main(). Before letting the AP get any further, we need to first address race conditions when multiple CPUs run kernel code simultaneously. The simplest way to achieve this is to use a big kernel lock. The big kernel lock is a single global lock that is held whenever an environment enters kernel mode, and is released when the environment returns to user mode. In this model, environments in user mode can run concurrently on any available CPUs, but no more than one environment can run in kernel mode; any other environments that try to enter kernel mode are forced to wait.
+我们当前的代码 mp_main()在初始化 AP 之后就开始自旋。在进一步之前，我们需要弄清楚多个 CPU 运行内核代码时的竞争条件。最简单的方式是使用 big kernel lock。big kernel lock 是单个全局的锁，当一个环境进入内核态的时候获取，当该环境退出内核态的时候释放。在这个模型中，用户态代码可以同时运行在多个 CPU 上，但是同一时刻不能超过一个用户环境运行在内核态上；任何想要进入内核态的环境都被迫等待。
 
-kern/spinlock.h declares the big kernel lock, namely kernel_lock. It also provides lock_kernel() and unlock_kernel(), shortcuts to acquire and release the lock. You should apply the big kernel lock at four locations:
+kern/spinlock.h 声明了 big kernel lock，命名为 kernel_lock。它也提供了 lock_kernel()和 unlock_kernel()函数来获取和释放锁。你应该在这四个地方使用 big kernel lock：
 
--   In i386_init(), acquire the lock before the BSP wakes up the other CPUs.
--   In mp_main(), acquire the lock after initializing the AP, and then call sched_yield() to start running environments on this AP.
--   In trap(), acquire the lock when trapped from user mode. To determine whether a trap happened in user mode or in kernel mode, check the low bits of the tf_cs.
--   In env_run(), release the lock right before switching to user mode. Do not do that too early or too late, otherwise you will experience races or deadlocks.
+-   i386_init()，在 BSP 唤醒其他 CPU 的之前获得锁。
+-   mp_main()，初始化 AP 之后获取锁，接着调用 sched_yield()让 AP 开始运行环境。
+-   trap()，用户态陷入内核态时获取锁。为了决定该陷入发生在用户态还是内核态，查看 tf_cs 的低位。
+-   env_run()，切换到用户态时释放锁。不要太早也不要太晚做这件事，否则你会遇到竞争和死锁。
 
-Exercise 5. Apply the big kernel lock as described above, by calling lock_kernel() and unlock_kernel() at the proper locations.
+练习 5。应用上述的 big kernel lock，在适当的地方调用 lock_kernel() 和 unlock_kernel()。
 
-How to test if your locking is correct? You can't at this moment! But you will be able to after you implement the scheduler in the next exercise.
+如何测试你的锁是否之正常工作？此时还不行！但是你在下一个练习里可以实现调度器。
 
-Question
+问题
 
-2. It seems that using the big kernel lock guarantees that only one CPU can run the kernel code at a time. Why do we still need separate kernel stacks for each CPU? Describe a scenario in which using a shared kernel stack will go wrong, even with the protection of the big kernel lock.
+1. 看似使用 big kernel lock 可以保证某一时刻只有一个 CPU 可以运行内核代码，那为什么我们需要给每个 CPU 都弄一个内核栈呢？在什么场景下，共享的内核栈会出错，哪怕是在 big kernel lock 保护下？
 
-Challenge! The big kernel lock is simple and easy to use. Nevertheless, it eliminates all concurrency in kernel mode. Most modern operating systems use different locks to protect different parts of their shared state, an approach called fine-grained locking. Fine-grained locking can increase performance significantly, but is more difficult to implement and error-prone. If you are brave enough, drop the big kernel lock and embrace concurrency in JOS!
+挑战！big kernel lock 简单易用。尽管如此，它消除了内核态的并行。大多数现代操作系统使用不同的锁来保护不同的部分，一个方法是 fine-grained locking。fine-grained locking 可以显著增加性能，但是它更难以实现，也很容易出错。如果你足够勇敢，丢弃 big kernel lock，让 JOS 拥抱并行。
 
 It is up to you to decide the locking granularity (the amount of data that a lock protects). As a hint, you may consider using spin locks to ensure exclusive access to these shared components in the JOS kernel:
 
