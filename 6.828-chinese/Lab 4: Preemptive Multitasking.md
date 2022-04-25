@@ -1,79 +1,79 @@
 # Lab 4: Preemptive Multitasking
 
-## Introduction
+## 介绍
 
-In this lab you will implement preemptive multitasking among multiple simultaneously active user-mode environments.
+在本实验室中，您将在多个同时活跃的用户模式环境中实现抢占式多任务处理。
 
-In part A you will add multiprocessor support to JOS, implement round-robin scheduling, and add basic environment management system calls (calls that create and destroy environments, and allocate/map memory).
+在 A 部分中，您将为 JOS 添加多处理器支持，实现循环调度，并添加基本的环境管理系统调用(创建和销毁环境的调用，以及分配/映射内存的调用)。
 
-In part B, you will implement a Unix-like fork(), which allows a user-mode environment to create copies of itself.
+在 B 部分，您将实现一个类 unix 的 fork()，它允许用户模式环境创建自身的副本。
 
-Finally, in part C you will add support for inter-process communication (IPC), allowing different user-mode environments to communicate and synchronize with each other explicitly. You will also add support for hardware clock interrupts and preemption.
+最后，在 C 部分中，您将添加对进程间通信(IPC)的支持，允许不同的用户环境显式地相互通信和同步。您还将添加对硬件时钟中断和抢占的支持。
 
-### Getting Started
+### 开始
 
 [omit]
 
-### Lab Requirements
+### 实验要求
 
-This lab is divided into three parts, A, B, and C. We have allocated one week in the schedule for each part.
+该课程被分为三部分，A，B 和 C。我们每周完成一个部分。
 
-As before, you will need to do all of the regular exercises described in the lab and at least one challenge problem. (You do not need to do one challenge problem per part, just one for the whole lab.) Additionally, you will need to write up a brief description of the challenge problem that you implemented. If you implement more than one challenge problem, you only need to describe one of them in the write-up, though of course you are welcome to do more. Place the write-up in a file called answers-lab4.txt in the top level of your lab directory before handing in your work.
+和以前一样，你需要做所有在实验室中描述的常规练习和至少一个挑战性问题。(你不需要每个部分做一个挑战题，整个实验室只做一个。)另外，你需要对你所实现的挑战问题写一个简短的描述。如果你实现了多个挑战问题，你只需要在报告中描述其中一个，当然也欢迎你做更多。在提交作业之前，将作业记录放在实验室目录的顶层名为 answers-lab4.txt 的文件中。
 
-## Part A: Multiprocessor Support and Cooperative Multitasking
+## Part A: 多处理器支持和协同多任务处理
 
-In the first part of this lab, you will first extend JOS to run on a multiprocessor system, and then implement some new JOS kernel system calls to allow user-level environments to create additional new environments. You will also implement cooperative round-robin scheduling, allowing the kernel to switch from one environment to another when the current environment voluntarily relinquishes the CPU (or exits). Later in part C you will implement preemptive scheduling, which allows the kernel to re-take control of the CPU from an environment after a certain time has passed even if the environment does not cooperate.
+在本实验的第一部分中，您将首先扩展 JOS 以在多处理器系统上运行，然后实现一些新的 JOS 内核系统调用，以允许用户级环境创建额外的新环境。您还将实现协作轮询调度，允许内核在当前环境自愿放弃 CPU(或退出)时从一个环境切换到另一个环境。在后面的 C 部分中，您将实现抢占式调度，它允许内核在经过一段时间后重新从环境中获得对 CPU 的控制，那怕该环境不合作。
 
-### Multiprocessor Support
+### 多处理器支持
 
-We are going to make JOS support "symmetric multiprocessing" (SMP), a multiprocessor model in which all CPUs have equivalent access to system resources such as memory and I/O buses. While all CPUs are functionally identical in SMP, during the boot process they can be classified into two types: the bootstrap processor (BSP) is responsible for initializing the system and for booting the operating system; and the application processors (APs) are activated by the BSP only after the operating system is up and running. Which processor is the BSP is determined by the hardware and the BIOS. Up to this point, all your existing JOS code has been running on the BSP.
+我们打算让 JOS 支持“对称多处理”(SMP)，这是一种多处理器模型，在这种模型中，所有 cpu 对系统资源(如内存和 I/O 总线)都有同等的访问权限。虽然在 SMP 中，所有 cpu 的功能都是相同的，但在引导过程中，它们可以分为两类:引导处理器(bootstrap processor, BSP)负责初始化系统和引导操作系统;只有在操作系统启动并运行之后，BSP 才会激活应用程序处理器(ap)。哪个处理器是 BSP 由硬件和 BIOS 决定。到目前为止，所有现有的 JOS 代码都在 BSP 上运行。
 
-In an SMP system, each CPU has an accompanying local APIC (LAPIC) unit. The LAPIC units are responsible for delivering interrupts throughout the system. The LAPIC also provides its connected CPU with a unique identifier. In this lab, we make use of the following basic functionality of the LAPIC unit (in kern/lapic.c):
+在 SMP 系统中，每个 CPU 都有一个相应的本地 APIC (LAPIC)单元。LAPIC 单元负责在整个系统中传递中断。LAPIC 还为其连接的 CPU 提供一个惟一标识符。在本实验室中，我们使用了以下 LAPIC 单元的基本功能(在 kern/ LAPIC .c 中):
 
--   Reading the LAPIC identifier (APIC ID) to tell which CPU our code is currently running on (see cpunum()).
--   Sending the STARTUP interprocessor interrupt (IPI) from the BSP to the APs to bring up other CPUs (see lapic_startap()).
--   In part C, we program LAPIC's built-in timer to trigger clock interrupts to support preemptive multitasking (see apic_init()).
+-   读取 LAPIC 标识符(APIC ID)来告诉我们的代码当前运行在哪个 CPU 上(参见 cpunum())。
+-   从 BSP 向 ap 发送 STARTUP interprocessor interrupt (IPI)来启动其他 cpu(参见 lapic_startap())。
+-   在 C 部分，我们编写了 LAPIC 的内置定时器来触发时钟中断，以支持抢占式多任务(参见 apic_init())。
 
-A processor accesses its LAPIC using memory-mapped I/O (MMIO). In MMIO, a portion of physical memory is hardwired to the registers of some I/O devices, so the same load/store instructions typically used to access memory can be used to access device registers. You've already seen one IO hole at physical address 0xA0000 (we use this to write to the VGA display buffer). The LAPIC lives in a hole starting at physical address 0xFE000000 (32MB short of 4GB), so it's too high for us to access using our usual direct map at KERNBASE. The JOS virtual memory map leaves a 4MB gap at MMIOBASE so we have a place to map devices like this. Since later labs introduce more MMIO regions, you'll write a simple function to allocate space from this region and map device memory to it.
+处理器使用内存映射 I/O (MMIO)访问它的 LAPIC。在 MMIO 中，物理内存的一部分硬连接到一些 I/O 设备的寄存器，因此通常用于访问内存的加载/存储指令也可以用于访问设备寄存器。您已经看到物理地址 0xA0000 上有一个 IO 孔(我们使用它来写入 VGA 显示缓冲区)。LAPIC 位于一个从物理地址 0xFE000000 (32MB 差 4GB)开始的漏洞中，因此我们无法在 KERNBASE 上使用通常的直接映射来访问它。JOS 虚拟内存映射在 MMIOBASE 中留下了 4MB 的空白，所以我们有一个地方可以像这样映射设备。由于后面的实验引入了更多的 MMIO 区域，因此您将编写一个简单的函数来从该区域分配空间并将设备内存映射到该区域。
 
-Exercise 1. Implement mmio_map_region in kern/pmap.c. To see how this is used, look at the beginning of lapic_init in kern/lapic.c. You'll have to do the next exercise, too, before the tests for mmio_map_region will run.
+练习 1。在 kern/map.c 中实现 mmio_map_region。要了解如何使用它，请查看 kern/lapic.c 中 lapic_init 的开头。在运行 mmio_map_region 的测试之前，您也必须进行下一个练习。
 
-#### Application Processor Bootstrap
+#### Application Processor Bootstrap（AP 处理器的启动）
 
-Before booting up APs, the BSP should first collect information about the multiprocessor system, such as the total number of CPUs, their APIC IDs and the MMIO address of the LAPIC unit. The mp_init() function in kern/mpconfig.c retrieves this information by reading the MP configuration table that resides in the BIOS's region of memory.
+在启动 ap 之前，BSP 应该首先收集多处理器系统的信息，如 cpu 总数、APIC id 和 LAPIC 单元的 MMIO 地址。kern/mpconfig.c 中的 mp_init()函数通过读取驻留在 BIOS 内存区域中的 MP 配置表来获取这些信息。
 
-The boot_aps() function (in kern/init.c) drives the AP bootstrap process. APs start in real mode, much like how the bootloader started in boot/boot.S, so boot_aps() copies the AP entry code (kern/mpentry.S) to a memory location that is addressable in the real mode. Unlike with the bootloader, we have some control over where the AP will start executing code; we copy the entry code to 0x7000 (MPENTRY_PADDR), but any unused, page-aligned physical address below 640KB would work.
+boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式下启动，就像引导加载程序在引导/引导中启动一样。，因此 boot_aps()将 AP 入口代码(kern/mpentry.S)复制到一个在实际模式下可寻址的内存位置。与引导加载器不同的是，我们对 AP 从哪里开始执行代码有一些控制;我们将入口代码复制到 0x7000 (MPENTRY_PADDR)，但是任何未使用的、页面对齐的、低于 640KB 的物理地址都可以工作。
 
-After that, boot_aps() activates APs one after another, by sending STARTUP IPIs to the LAPIC unit of the corresponding AP, along with an initial CS:IP address at which the AP should start running its entry code (MPENTRY_PADDR in our case). The entry code in kern/mpentry.S is quite similar to that of boot/boot.S. After some brief setup, it puts the AP into protected mode with paging enabled, and then calls the C setup routine mp_main() (also in kern/init.c). boot_aps() waits for the AP to signal a CPU_STARTED flag in cpu_status field of its struct CpuInfo before going on to wake up the next one.
+在此之后，boot_aps()通过向相应 AP 的 LAPIC 单元发送 STARTUP IPIs 以及初始 CS:IP 地址依次激活 AP, AP 应该在该 IP 地址开始运行它的入口代码(在本例中为 MPENTRY_PADDR)。kern/mpentry.S 中的入口代码。与 boot/boot.S 非常相似。经过一些简短的设置后，它将 AP 放入启用分页的保护模式，然后调用 C 设置例程 mp_main()(也在 kern/init.c 中)。boot_aps()等待 AP 在其结构体 CpuInfo 的 cpu_status 字段中发出 CPU_STARTED 标志，然后继续唤醒下一个 AP。
 
-Exercise 2. Read boot_aps() and mp_main() in kern/init.c, and the assembly code in kern/mpentry.S. Make sure you understand the control flow transfer during the bootstrap of APs. Then modify your implementation of page_init() in kern/pmap.c to avoid adding the page at MPENTRY_PADDR to the free list, so that we can safely copy and run AP bootstrap code at that physical address. Your code should pass the updated check_page_free_list() test (but might fail the updated check_kern_pgdir() test, which we will fix soon).
+练习 2。读入 kern/init.c 中的 boot_aps()和 mp_main()，读入 kern/mpentry.S 中的汇编代码。确保您理解 ap 引导过程中的控制流传输。然后修改 kern/pmap.c 中的 page_init()实现，以避免将 MPENTRY_PADDR 上的页面添加到空闲列表中，这样我们就可以安全地复制并运行该物理地址上的 AP 引导代码。您的代码应该通过更新的 check_page_free_list()测试(但可能无法通过更新的 check_kern_pgdir()测试，我们将很快修复它)。
 
-Question
+问题
 
-1. Compare kern/mpentry.S side by side with boot/boot.S. Bearing in mind that kern/mpentry.S is compiled and linked to run above KERNBASE just like everything else in the kernel, what is the purpose of macro MPBOOTPHYS? Why is it necessary in kern/mpentry.S but not in boot/boot.S? In other words, what could go wrong if it were omitted in kern/mpentry.S?
-   Hint: recall the differences between the link address and the load address that we have discussed in Lab 1.
+1. 一行一行地对比 kern/mpentry.S 和 boot/boot.S。记住 kern/mpentry.S 被编译和链接，然后运行在 KERNBASE 之上，就像内核的其他部分一样，MPBOOTPHYS 宏的目的是什么？为什么在 kern/mpentry.S 里而不是 boot/boot.S 里？换言之，如果把它在 kern/mpentry.S 里去掉会发生什么？
+   提示：重谈我们在实验一里讨论过的链接地址和加载地址的区别。
 
-#### Per-CPU State and Initialization
+#### Per-CPU State and Initialization（每个 CPU 的状态及其初始化）
 
-When writing a multiprocessor OS, it is important to distinguish between per-CPU state that is private to each processor, and global state that the whole system shares. kern/cpu.h defines most of the per-CPU state, including struct CpuInfo, which stores per-CPU variables. cpunum() always returns the ID of the CPU that calls it, which can be used as an index into arrays like cpus. Alternatively, the macro thiscpu is shorthand for the current CPU's struct CpuInfo.
+在编写多处理器操作系统时，区分每个处理器私有的每 cpu 状态和整个系统共享的全局状态是很重要的。kern/cpu.h 定义了每个 cpu 的大部分状态，包括 struct CpuInfo，它存储每个 cpu 的变量。cpunum()总是返回调用它的 CPU 的 ID，它可以用作 CPU 等数组的索引。或者说，宏 thiscpu 是当前 CPU 结构体 CpuInfo 的简写。
 
-Here is the per-CPU state you should be aware of:
+这里是你需要注意的每个 CPU 的状态：
 
--   Per-CPU kernel stack.
-    Because multiple CPUs can trap into the kernel simultaneously, we need a separate kernel stack for each processor to prevent them from interfering with each other's execution. The array percpu_kstacks[NCPU][kstksize] reserves space for NCPU's worth of kernel stacks.
+-   每个 CPU 的内核栈（kernel stack）
+    因为多 CPU 可以同时陷入内核，所以我们需要为每一个 CPU 弄一个内核栈，来防止它们相互干涉对方的执行。数组 percpu_kstacks[NCPU][kstksize]为 NCPU 保留了内核栈的空间。
 
     In Lab 2, you mapped the physical memory that bootstack refers to as the BSP's kernel stack just below KSTACKTOP. Similarly, in this lab, you will map each CPU's kernel stack into this region with guard pages acting as a buffer between them. CPU 0's stack will still grow down from KSTACKTOP; CPU 1's stack will start KSTKGAP bytes below the bottom of CPU 0's stack, and so on. inc/memlayout.h shows the mapping layout.
 
--   Per-CPU TSS and TSS descriptor.
-    A per-CPU task state segment (TSS) is also needed in order to specify where each CPU's kernel stack lives. The TSS for CPU i is stored in cpus[i].cpu_ts, and the corresponding TSS descriptor is defined in the GDT entry gdt[(GD_TSS0 >> 3) + i]. The global ts variable defined in kern/trap.c will no longer be useful.
+-   每个 CPU 的 TSS 和 TSS 描述符
+    为了指定每一个 CPU 的内核栈都存在于哪里，需要每个 CPU 的任务状态段（TSS）。CPU i 的 TSS 存放在 cpu[i].cpu_ts 中，对应的 TSS 描述符定义在 GDT 项 gdt[(GD_TSS0 >> 3) + i]里。全局 ts 变量定义在 kern/trap.c 不会再有用处。
 
--   Per-CPU current environment pointer.
-    Since each CPU can run different user process simultaneously, we redefined the symbol curenv to refer to cpus[cpunum()].cpu_env (or thiscpu->cpu_env), which points to the environment currently executing on the current CPU (the CPU on which the code is running).
+-   每个 CPU 当前运行的环境的指针
+    因为每个 CPU 可以同时运行用户进程，所以我们重新定义符号 curenv，让它指向 cpus[cpunum()].cpu_env（或者是 thiscpu->cpu_env），也就是指向当前 CPU 正在执行的环境（当前代码执行在哪个 CPU 上）。
 
--   Per-CPU system registers.
-    All registers, including system registers, are private to a CPU. Therefore, instructions that initialize these registers, such as lcr3(), ltr(), lgdt(), lidt(), etc., must be executed once on each CPU. Functions env_init_percpu() and trap_init_percpu() are defined for this purpose.
+-   每个 CPU 的系统寄存器
+    所有寄存器，包括系统寄存器，都是 CPU 私有的。因此，用来初始化这些寄存器的指令，比如说 lcr3(), ltr(), lgdt(), lidt()等，必须在每个 CPU 上都执行一次。函数 env_init_percpu()和 trap_init_percpu()是为这种目的而设定的。
 
-    In addition to this, if you have added any extra per-CPU state or performed any additional CPU-specific initialization (by say, setting new bits in the CPU registers) in your solutions to challenge problems in earlier labs, be sure to replicate them on each CPU here!
+    除此之外，如果你在你的解决方案中添加了任何额外的每 CPU 状态或执行了任何额外的特定于 CPU 的初始化（比如，在 CPU 寄存器中设置新位）以挑战早期实验室中的问题，请确保每个 CPU 上都复制了它们。
 
 Exercise 3. Modify mem_init_mp() (in kern/pmap.c) to map per-CPU stacks starting at KSTACKTOP, as shown in inc/memlayout.h. The size of each stack is KSTKSIZE bytes plus KSTKGAP bytes of unmapped guard pages. Your code should pass the new check in check_kern_pgdir().
 
