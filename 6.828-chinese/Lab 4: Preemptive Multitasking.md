@@ -176,46 +176,46 @@ Unix 提供 fork()系统调用作为它的进程创建原语。Unix fork()复制
 
 你将提供一组不同的、更原始的 JOS 系统调用来创建新的用户模式环境。通过这些系统调用，你将能够完全在用户空间中实现类 unix 的 fork()，以及其他类型的环境创建。你将为 JOS 编写的新系统调用如下:
 
--   sys_exofork:
-    This system call creates a new environment with an almost blank slate: nothing is mapped in the user portion of its address space, and it is not runnable. The new environment will have the same register state as the parent environment at the time of the sys_exofork call. In the parent, sys_exofork will return the envid_t of the newly created environment (or a negative error code if the environment allocation failed). In the child, however, it will return 0. (Since the child starts out marked as not runnable, sys_exofork will not actually return in the child until the parent has explicitly allowed this by marking the child runnable using....)
--   sys_env_set_status:
-    Sets the status of a specified environment to ENV_RUNNABLE or ENV_NOT_RUNNABLE. This system call is typically used to mark a new environment ready to run, once its address space and register state has been fully initialized.
+-   sys_exofork：
+    这个系统创建一个新的环境，几乎空白的环境：没有地址空间的映射，不可运行。当调用该系统调用时，新环境会和父环境拥有相同的寄存器状态。在父环境中，sys_exofork 将返回新创建的环境的 envid_t(如果环境分配失败，则返回负的错误代码)。然而，在子进程中，它将返回 0。(由于子进程一开始被标记为不可运行，sys_exofork 实际上不会在子进程中返回，直到父进程使用....显式地将子进程标记为可运行。)
+-   sys_env_set_status：
+    设置指定环境的状态为 ENV_RUNNABLE 或 ENV_NOT_RUNNABLE。这个系统调用通常用于标记一个新环境准备运行，一旦它的地址空间和寄存器状态已经完全初始化。
 -   sys_page_alloc:
-    Allocates a page of physical memory and maps it at a given virtual address in a given environment's address space.
+    分配一页物理内存，并将其映射到给定环境的地址空间中的给定虚拟地址。
 -   sys_page_map:
-    Copy a page mapping (not the contents of a page!) from one environment's address space to another, leaving a memory sharing arrangement in place so that the new and the old mappings both refer to the same page of physical memory.
+    将一个页面映射(而不是页面的内容!)从一个环境的地址空间复制到另一个环境，保留一个内存共享安排，以便新映射和旧映射都引用物理内存的同一页。
 -   sys_page_unmap:
-    Unmap a page mapped at a given virtual address in a given environment.
+    取消在给定环境中给定虚拟地址映射的页的映射。
 
-For all of the system calls above that accept environment IDs, the JOS kernel supports the convention that a value of 0 means "the current environment." This convention is implemented by envid2env() in kern/env.c.
+对于以上接受环境 id 的所有系统调用，JOS 内核支持这样的约定:值 0 表示“当前环境”。这个约定由 kern/env.c 中的 envid2env()实现。
 
-We have provided a very primitive implementation of a Unix-like fork() in the test program user/dumbfork.c. This test program uses the above system calls to create and run a child environment with a copy of its own address space. The two environments then switch back and forth using sys_yield as in the previous exercise. The parent exits after 10 iterations, whereas the child exits after 20.
+我们已经在测试程序 user/dumbfork.c 中提供了一个类 unix 的 fork()的非常原始的实现。这个测试程序使用上面的系统调用来创建和运行带有自己地址空间副本的子环境。然后，这两个环境使用 sys_yield 在前面的练习中来回切换。父进程在迭代 10 次后退出，而子进程在迭代 20 次后退出。
 
-Exercise 7. Implement the system calls described above in kern/syscall.c and make sure syscall() calls them. You will need to use various functions in kern/pmap.c and kern/env.c, particularly envid2env(). For now, whenever you call envid2env(), pass 1 in the checkperm parameter. Be sure you check for any invalid system call arguments, returning -E_INVAL in that case. Test your JOS kernel with user/dumbfork and make sure it works before proceeding.
+练习 7。实现 kern/syscall.c 中描述的系统调用，并确保 syscall()调用它们。您将需要使用 kern/pmap.c 和 kern/env.c 中的各种函数，特别是 envid2env()。现在，无论何时调用 envid2env()，都要在 checkperm 参数中传递 1。确保您检查了任何无效的系统调用参数，在这种情况下返回-E_INVAL。使用 user/dumbfork 测试你的 JOS 内核，确保它能正常工作。
 
-Challenge! Add the additional system calls necessary to read all of the vital state of an existing environment as well as set it up. Then implement a user mode program that forks off a child environment, runs it for a while (e.g., a few iterations of sys_yield()), then takes a complete snapshot or checkpoint of the child environment, runs the child for a while longer, and finally restores the child environment to the state it was in at the checkpoint and continues it from there. Thus, you are effectively "replaying" the execution of the child environment from an intermediate state. Make the child environment perform some interaction with the user using sys_cgetc() or readline() so that the user can view and mutate its internal state, and verify that with your checkpoint/restart you can give the child environment a case of selective amnesia, making it "forget" everything that happened beyond a certain point.
+挑战!添加必要的附加系统调用，以读取现有环境的所有重要状态并设置它。然后实现一个用户模式程序，它分叉一个子环境，运行它一段时间(例如，sys_yield()的几个迭代)，然后获取子环境的完整快照或检查点，运行子环境一段时间，最后将子环境恢复到它在检查点时的状态，并从那里继续它。因此，您可以有效地从中间状态“重放”子环境的执行。使孩子环境执行一些与用户的交互使用 sys_cgetc()或 readline(),以便用户可以查看和改变其内部状态,与你的检查站,并验证/重启可以给孩子环境的选择性失忆,这使得“忘记”,超过某特定点上发生的一切。
 
-This completes Part A of the lab; make sure it passes all of the Part A tests when you run make grade, and hand it in using make handin as usual. If you are trying to figure out why a particular test case is failing, run ./grade-lab4 -v, which will show you the output of the kernel builds and QEMU runs for each test, until a test fails. When a test fails, the script will stop, and then you can inspect jos.out to see what the kernel actually printed.
+这完成了实验室的 A 部分;当你运行 make grade 时，确保它通过所有的 A 部分测试，然后像往常一样使用 make handin 交上来。如果您试图找出为什么某个特定的测试用例失败，运行./grade-lab4 -v，它将显示内核构建的输出，并为每个测试运行 QEMU，直到一个测试失败。当测试失败时，脚本将停止，然后您可以检查 jos。出来看看内核实际打印了什么。
 
-## Part B: Copy-on-Write Fork
+## Part B: Copy-on-Write Fork（写时复制 Fork）
 
-As mentioned earlier, Unix provides the fork() system call as its primary process creation primitive. The fork() system call copies the address space of the calling process (the parent) to create a new process (the child).
+如前所述，Unix 提供 fork()系统调用作为它的主要进程创建原语。fork()系统调用复制调用进程(父进程)的地址空间，以创建一个新进程(子进程)。
 
-xv6 Unix implements fork() by copying all data from the parent's pages into new pages allocated for the child. This is essentially the same approach that dumbfork() takes. The copying of the parent's address space into the child is the most expensive part of the fork() operation.
+xv6 Unix 通过将所有来自父节点的数据复制到分配给子节点的新页面来实现 fork()。这基本上与 dumbfork()采用的方法相同。将父节点的地址空间复制到子节点是 fork()操作中开销最大的部分。
 
-However, a call to fork() is frequently followed almost immediately by a call to exec() in the child process, which replaces the child's memory with a new program. This is what the the shell typically does, for example. In this case, the time spent copying the parent's address space is largely wasted, because the child process will use very little of its memory before calling exec().
+然而，在调用 fork()之后，经常会立即在子进程中调用 exec()，这将用一个新程序替换子进程的内存。例如，这就是 shell 通常做的事情。在这种情况下，花在复制父进程地址空间上的时间基本上是浪费的，因为子进程在调用 exec()之前只会使用很少的内存。
 
-For this reason, later versions of Unix took advantage of virtual memory hardware to allow the parent and child to share the memory mapped into their respective address spaces until one of the processes actually modifies it. This technique is known as copy-on-write. To do this, on fork() the kernel would copy the address space mappings from the parent to the child instead of the contents of the mapped pages, and at the same time mark the now-shared pages read-only. When one of the two processes tries to write to one of these shared pages, the process takes a page fault. At this point, the Unix kernel realizes that the page was really a "virtual" or "copy-on-write" copy, and so it makes a new, private, writable copy of the page for the faulting process. In this way, the contents of individual pages aren't actually copied until they are actually written to. This optimization makes a fork() followed by an exec() in the child much cheaper: the child will probably only need to copy one page (the current page of its stack) before it calls exec().
+由于这个原因，Unix 的后续版本利用虚拟内存硬件，允许父进程和子进程共享映射到各自地址空间的内存，直到其中一个进程真正修改它。这种技术称为写时复制。要做到这一点，在 fork()上，内核会将地址空间映射从父节点复制到子节点，而不是映射页面的内容，同时将现在共享的页面标记为只读。当两个进程中的一个试图写入这些共享页面时，该进程将出现页面错误。在这一点上，Unix 内核意识到页面实际上是一个“虚拟”或“写时复制”副本，因此它为出现故障的进程创建了一个新的、私有的、可写的页面副本。通过这种方式，在实际写入各个页面之前，不会实际复制各个页面的内容。这种优化使得子进程中 fork()后跟 exec()的代价更低:子进程在调用 exec()之前可能只需要复制一页(堆栈的当前页)。
 
-In the next piece of this lab, you will implement a "proper" Unix-like fork() with copy-on-write, as a user space library routine. Implementing fork() and copy-on-write support in user space has the benefit that the kernel remains much simpler and thus more likely to be correct. It also lets individual user-mode programs define their own semantics for fork(). A program that wants a slightly different implementation (for example, the expensive always-copy version like dumbfork(), or one in which the parent and child actually share memory afterward) can easily provide its own.
+在本实验的下一部分中，您将实现一个“适当的”类 unix 的带有 copy-on-write 的 fork()，作为一个用户空间库例程。在用户空间中实现 fork()和 copy-on-write 支持的好处是，内核仍然更简单，因此更有可能是正确的。它还允许单独的用户模式程序为 fork()定义它们自己的语义。如果一个程序需要一个稍微不同的实现(例如，像 dumbfork()这样代价昂贵的总是复制版本，或者父和子实际上在之后共享内存的版本)，那么它可以很容易地提供自己的实现。
 
-### User-level page fault handling
+### User-level page fault handling（用户级页错误处理）
 
-A user-level copy-on-write fork() needs to know about page faults on write-protected pages, so that's what you'll implement first. Copy-on-write is only one of many possible uses for user-level page fault handling.
+用户级 write-copy-fork()需要知道写保护页面上的页面错误，所以这是您首先要实现的。写时复制只是用户级页面错误处理的许多可能用途之一。
 
-It's common to set up an address space so that page faults indicate when some action needs to take place. For example, most Unix kernels initially map only a single page in a new process's stack region, and allocate and map additional stack pages later "on demand" as the process's stack consumption increases and causes page faults on stack addresses that are not yet mapped. A typical Unix kernel must keep track of what action to take when a page fault occurs in each region of a process's space. For example, a fault in the stack region will typically allocate and map new page of physical memory. A fault in the program's BSS region will typically allocate a new page, fill it with zeroes, and map it. In systems with demand-paged executables, a fault in the text region will read the corresponding page of the binary off of disk and then map it.
+设置一个地址空间是很常见的，这样页面错误就可以指示什么时候需要执行某些操作。例如，大多数 Unix 内核最初只映射一个新进程的堆栈区域中的单个页面，然后随着进程的堆栈消耗增加，“按需”分配和映射额外的堆栈页面，并导致尚未映射的堆栈地址的页面错误。典型的 Unix 内核必须跟踪在进程空间的每个区域发生页面错误时应该采取的操作。例如，堆栈区域中的故障通常会分配和映射物理内存的新页。程序的 BSS 区域中的错误通常会分配一个新页面，用零填充它，并映射它。在具有按需分页可执行文件的系统中，文本区域中的错误将从磁盘中读取相应的二进制文件页，然后映射它。
 
-This is a lot of information for the kernel to keep track of. Instead of taking the traditional Unix approach, you will decide what to do about each page fault in user space, where bugs are less damaging. This design has the added benefit of allowing programs great flexibility in defining their memory regions; you'll use user-level page fault handling later for mapping and accessing files on a disk-based file system.
+这是内核需要跟踪的大量信息。您将决定如何处理用户空间中的每个页面错误，而不是采用传统的 Unix 方法，在用户空间中，错误的破坏性较小。这种设计还有一个额外的好处，即允许程序在定义它们的内存区域时具有很大的灵活性;稍后，您将使用用户级页面错误处理来映射和访问基于磁盘的文件系统上的文件。
 
 #### Setting the Page Fault Handler
 
