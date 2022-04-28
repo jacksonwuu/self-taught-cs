@@ -2,13 +2,13 @@
 
 ## 介绍
 
-在本实验室中，您将在多个同时活跃的用户模式环境中实现抢占式多任务处理。
+在本实验室中，你将在多个同时活跃的用户模式环境中实现抢占式多任务处理。
 
-在 A 部分中，您将为 JOS 添加多处理器支持，实现循环调度，并添加基本的环境管理系统调用(创建和销毁环境的调用，以及分配/映射内存的调用)。
+在 A 部分中，你将为 JOS 添加多处理器支持，实现循环调度，并添加基本的环境管理系统调用(创建和销毁环境的调用，以及分配/映射内存的调用)。
 
-在 B 部分，您将实现一个类 unix 的 fork()，它允许用户模式环境创建自身的副本。
+在 B 部分，你将实现一个类 unix 的 fork()，它允许用户模式环境创建自身的副本。
 
-最后，在 C 部分中，您将添加对进程间通信(IPC)的支持，允许不同的用户环境显式地相互通信和同步。您还将添加对硬件时钟中断和抢占的支持。
+最后，在 C 部分中，你将添加对进程间通信(IPC)的支持，允许不同的用户环境显式地相互通信和同步。你还将添加对硬件时钟中断和抢占的支持。
 
 ### 开始
 
@@ -22,7 +22,7 @@
 
 ## Part A: 多处理器支持和协同多任务处理
 
-在本实验的第一部分中，您将首先扩展 JOS 以在多处理器系统上运行，然后实现一些新的 JOS 内核系统调用，以允许用户级环境创建额外的新环境。您还将实现协作轮询调度，允许内核在当前环境自愿放弃 CPU(或退出)时从一个环境切换到另一个环境。在后面的 C 部分中，您将实现抢占式调度，它允许内核在经过一段时间后重新从环境中获得对 CPU 的控制，那怕该环境不合作。
+在本实验的第一部分中，你将首先扩展 JOS 以在多处理器系统上运行，然后实现一些新的 JOS 内核系统调用，以允许用户级环境创建额外的新环境。你还将实现协作轮询调度，允许内核在当前环境自愿放弃 CPU(或退出)时从一个环境切换到另一个环境。在后面的 C 部分中，你将实现抢占式调度，它允许内核在经过一段时间后重新从环境中获得对 CPU 的控制，那怕该环境不合作。
 
 ### 多处理器支持
 
@@ -34,9 +34,9 @@
 -   从 BSP 向 ap 发送 STARTUP interprocessor interrupt (IPI)来启动其他 cpu(参见 lapic_startap())。
 -   在 C 部分，我们编写了 LAPIC 的内置定时器来触发时钟中断，以支持抢占式多任务(参见 apic_init())。
 
-处理器使用内存映射 I/O (MMIO)访问它的 LAPIC。在 MMIO 中，物理内存的一部分硬连接到一些 I/O 设备的寄存器，因此通常用于访问内存的加载/存储指令也可以用于访问设备寄存器。您已经看到物理地址 0xA0000 上有一个 IO 孔(我们使用它来写入 VGA 显示缓冲区)。LAPIC 位于一个从物理地址 0xFE000000 (32MB 差 4GB)开始的漏洞中，因此我们无法在 KERNBASE 上使用通常的直接映射来访问它。JOS 虚拟内存映射在 MMIOBASE 中留下了 4MB 的空白，所以我们有一个地方可以像这样映射设备。由于后面的实验引入了更多的 MMIO 区域，因此您将编写一个简单的函数来从该区域分配空间并将设备内存映射到该区域。
+处理器使用内存映射 I/O (MMIO)访问它的 LAPIC。在 MMIO 中，物理内存的一部分硬连接到一些 I/O 设备的寄存器，因此通常用于访问内存的加载/存储指令也可以用于访问设备寄存器。你已经看到物理地址 0xA0000 上有一个 IO 孔(我们使用它来写入 VGA 显示缓冲区)。LAPIC 位于一个从物理地址 0xFE000000 (32MB 差 4GB)开始的漏洞中，因此我们无法在 KERNBASE 上使用通常的直接映射来访问它。JOS 虚拟内存映射在 MMIOBASE 中留下了 4MB 的空白，所以我们有一个地方可以像这样映射设备。由于后面的实验引入了更多的 MMIO 区域，因此你将编写一个简单的函数来从该区域分配空间并将设备内存映射到该区域。
 
-练习 1。在 kern/map.c 中实现 mmio_map_region。要了解如何使用它，请查看 kern/lapic.c 中 lapic_init 的开头。在运行 mmio_map_region 的测试之前，您也必须进行下一个练习。
+练习 1。在 kern/map.c 中实现 mmio_map_region。要了解如何使用它，请查看 kern/lapic.c 中 lapic_init 的开头。在运行 mmio_map_region 的测试之前，你也必须进行下一个练习。
 
 #### Application Processor Bootstrap（AP 处理器的启动）
 
@@ -46,7 +46,7 @@ boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式
 
 在此之后，boot_aps()通过向相应 AP 的 LAPIC 单元发送 STARTUP IPIs 以及初始 CS:IP 地址依次激活 AP, AP 应该在该 IP 地址开始运行它的入口代码(在本例中为 MPENTRY_PADDR)。kern/mpentry.S 中的入口代码。与 boot/boot.S 非常相似。经过一些简短的设置后，它将 AP 放入启用分页的保护模式，然后调用 C 设置例程 mp_main()(也在 kern/init.c 中)。boot_aps()等待 AP 在其结构体 CpuInfo 的 cpu_status 字段中发出 CPU_STARTED 标志，然后继续唤醒下一个 AP。
 
-练习 2。读入 kern/init.c 中的 boot_aps()和 mp_main()，读入 kern/mpentry.S 中的汇编代码。确保您理解 ap 引导过程中的控制流传输。然后修改 kern/pmap.c 中的 page_init()实现，以避免将 MPENTRY_PADDR 上的页面添加到空闲列表中，这样我们就可以安全地复制并运行该物理地址上的 AP 引导代码。您的代码应该通过更新的 check_page_free_list()测试(但可能无法通过更新的 check_kern_pgdir()测试，我们将很快修复它)。
+练习 2。读入 kern/init.c 中的 boot_aps()和 mp_main()，读入 kern/mpentry.S 中的汇编代码。确保你理解 ap 引导过程中的控制流传输。然后修改 kern/pmap.c 中的 page_init()实现，以避免将 MPENTRY_PADDR 上的页面添加到空闲列表中，这样我们就可以安全地复制并运行该物理地址上的 AP 引导代码。你的代码应该通过更新的 check_page_free_list()测试(但可能无法通过更新的 check_kern_pgdir()测试，我们将很快修复它)。
 
 问题
 
@@ -75,7 +75,7 @@ boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式
 
     除此之外，如果你在你的解决方案中添加了任何额外的每 CPU 状态或执行了任何额外的特定于 CPU 的初始化（比如，在 CPU 寄存器中设置新位）以挑战早期实验室中的问题，请确保每个 CPU 上都复制了它们。
 
-练习 3。修改 kern/pmap.c 里的 mem_init_mp()，使其映射每个 CPU 栈到 KSTACKTOP 的初始位置，正如 inc/memlayout.h 里展示的那样。每个堆栈的大小是 KSTKSIZE 字节加上未映射保护页的 KSTKGAP 字节。您的代码应该通过新测试 check_kern_pgdir()。
+练习 3。修改 kern/pmap.c 里的 mem_init_mp()，使其映射每个 CPU 栈到 KSTACKTOP 的初始位置，正如 inc/memlayout.h 里展示的那样。每个堆栈的大小是 KSTKSIZE 字节加上未映射保护页的 KSTKGAP 字节。你的代码应该通过新测试 check_kern_pgdir()。
 
 练习 4。trap_init_percpu()（位于 kern/trap.c）里的代码为 BSP 初始化 TSS 和 TSS 描述符。这个函数可以在实验三里正常运行，但是它在其他 CPU 上运行就会出错。修改代码，让它可以在所有的 CPU 上运行。（注意：你的新代码不应该再使用全局 ts 变量。）
 
@@ -116,30 +116,30 @@ kern/spinlock.h 声明了 big kernel lock，命名为 kernel_lock。它也提供
 
 挑战！big kernel lock 简单易用。尽管如此，它消除了内核态的并行。大多数现代操作系统使用不同的锁来保护不同的部分，一个方法是 fine-grained locking。fine-grained locking 可以显著增加性能，但是它更难以实现，也很容易出错。如果你足够勇敢，丢弃 big kernel lock，让 JOS 拥抱并行。
 
-It is up to you to decide the locking granularity (the amount of data that a lock protects). As a hint, you may consider using spin locks to ensure exclusive access to these shared components in the JOS kernel:
+由你决定锁的粒度（该锁要保护多少数据）。作为提示，你可能要考虑使用自旋锁来保证 JOS 内核里共享组件的排他访问：
 
 -   The page allocator.
 -   The console driver.
 -   The scheduler.
 -   The inter-process communication (IPC) state that you will implement in the part C.
 
-### Round-Robin Scheduling
+### Round-Robin Scheduling（循环调度）
 
-Your next task in this lab is to change the JOS kernel so that it can alternate between multiple environments in "round-robin" fashion. Round-robin scheduling in JOS works as follows:
+你的下一个任务是去改变 JO 内核，以便于它可以循环切换多环境。循环调度的运行如下：
 
--   The function sched_yield() in the new kern/sched.c is responsible for selecting a new environment to run. It searches sequentially through the envs[] array in circular fashion, starting just after the previously running environment (or at the beginning of the array if there was no previously running environment), picks the first environment it finds with a status of ENV_RUNNABLE (see inc/env.h), and calls env_run() to jump into that environment.
--   sched_yield() must never run the same environment on two CPUs at the same time. It can tell that an environment is currently running on some CPU (possibly the current CPU) because that environment's status will be ENV_RUNNING.
--   We have implemented a new system call for you, sys_yield(), which user environments can call to invoke the kernel's sched_yield() function and thereby voluntarily give up the CPU to a different environment.
+-   kern/sched.c 里的 sched_yield()负责选取一个新的环境来运行。它按照环形顺序来搜索 envs[]数组，从刚刚运行的环境开始搜索起（或者刚刚如果没有运行的环境，那就从最开头开始开始搜索），选取第一个它发现的 ENV_RUNNABLE 状态的环境，然后调用 env_run()来跳进去执行这个环境。
+-   sched_yield()永远不要在两个 CPU 上运行同一个环境。看环境的状态为 ENV_RUNNING 就知道它当前运行在一些 CPU 上（很有可能就是当前 CPU）。
+-   我们已经为你实现了一个新的系统调用 sys_yield()，用户环境可以调用这个来调用内核的 sched_yield()函数，这样就自愿地放弃 CPU，让给其他环境。
 
-Exercise 6. Implement round-robin scheduling in sched_yield() as described above. Don't forget to modify syscall() to dispatch sys_yield().
+练习 6。在 sched_yield()里实现如上所述的循环调度。不要忘记修改 syscall()来分发 sys_yield()系统调用。
 
-Make sure to invoke sched_yield() in mp_main.
+确保在 mp_main 里调用了 sched_yield()。
 
-Modify kern/init.c to create three (or more!) environments that all run the program user/yield.c.
+修改 kern/init.c 来创建三个（甚至更多）的环境，让他们都运行程序 user/yield.c。
 
-Run make qemu. You should see the environments switch back and forth between each other five times before terminating, like below.
+运行`make qemu`。你应该看到环境切换来切换去，五次之后终止运行，如下所示。
 
-Test also with several CPUS: make qemu CPUS=2.
+测试多 CPU：`make qemu CPUS=2`.
 
 ```
 ...
@@ -155,26 +155,26 @@ Back in environment 00001002, iteration 1.
 ...
 ```
 
-After the yield programs exit, there will be no runnable environment in the system, the scheduler should invoke the JOS kernel monitor. If any of this does not happen, then fix your code before proceeding.
+在 yield 程序退出后，系统里就没有可运行的环境了，调度器应该触发 JOS 内核监控器。如果没有发生，那就修改你的代码，之后再进行下一步。
 
-Question
+问题
 
-3. In your implementation of env_run() you should have called lcr3(). Before and after the call to lcr3(), your code makes references (at least it should) to the variable e, the argument to env_run. Upon loading the %cr3 register, the addressing context used by the MMU is instantly changed. But a virtual address (namely e) has meaning relative to a given address context--the address context specifies the physical address to which the virtual address maps. Why can the pointer e be dereferenced both before and after the addressing switch?
-4. Whenever the kernel switches from one environment to another, it must ensure the old environment's registers are saved so they can be restored properly later. Why? Where does this happen?
+1. 在你的 env_run()实现中，你应该调用了 lcr3()。在调用 lcr3()前后，你的代码对变量 e 做了引用，也就是 env_run 的参数。在加载%cr3 寄存器之后，MMU 使用的上下文一下子被切换了。但是一个虚拟地址和地址上下文有联系——地址上下文指出虚拟地址要映射到哪个物理地址上。为什么指针 e 依旧可以在地址切换前后进行取值？
+2. 不管内核从一个环境切换到另外一个环境，它必须确保老环境寄存器被保存起来了，这样它们就可以正确地恢复。为什么？这个在哪里发生的？
 
-Challenge! Add a less trivial scheduling policy to the kernel, such as a fixed-priority scheduler that allows each environment to be assigned a priority and ensures that higher-priority environments are always chosen in preference to lower-priority environments. If you're feeling really adventurous, try implementing a Unix-style adjustable-priority scheduler or even a lottery or stride scheduler. (Look up "lottery scheduling" and "stride scheduling" in Google.)
+挑战!向内核添加一个不那么简单的调度策略，比如一个固定优先级的调度器，它允许为每个环境分配一个优先级，并确保总是选择高优先级的环境，而不是低优先级的环境。如果你真的想冒险，尝试实现一个 unix 风格的可调优先级调度程序，或者甚至是一个彩票或跨步调度程序。(在谷歌中查找"lottery scheduling"和"stride scheduling"。)
 
-Write a test program or two that verifies that your scheduling algorithm is working correctly (i.e., the right environments get run in the right order). It may be easier to write these test programs once you have implemented fork() and IPC in parts B and C of this lab.
+编写一两个测试程序来验证你的调度算法是否正确工作(即，正确的环境以正确的顺序运行)。在本实验室的 B 部分和 C 部分实现了 fork()和 IPC 之后，编写这些测试程序可能会更容易。
 
-Challenge! The JOS kernel currently does not allow applications to use the x86 processor's x87 floating-point unit (FPU), MMX instructions, or Streaming SIMD Extensions (SSE). Extend the Env structure to provide a save area for the processor's floating point state, and extend the context switching code to save and restore this state properly when switching from one environment to another. The FXSAVE and FXRSTOR instructions may be useful, but note that these are not in the old i386 user's manual because they were introduced in more recent processors. Write a user-level test program that does something cool with floating-point.
+挑战!JOS 内核目前不允许应用程序使用 x86 处理器的 x87 浮点单元(FPU)、MMX 指令或流 SIMD 扩展(SSE)。扩展 Env 结构，为处理器的浮点状态提供一个保存区域，并扩展上下文切换代码，以便在从一个环境切换到另一个环境时正确地保存和恢复这个状态。FXSAVE 和 FXRSTOR 指令可能是有用的，但请注意，旧的 i386 用户手册中没有这些指令，因为它们是在最新的处理器中引入的。编写一个用户级的测试程序，用浮点做一些很酷的事情。
 
-### System Calls for Environment Creation
+### System Calls for Environment Creation（进行环境创建的系统调用）
 
-Although your kernel is now capable of running and switching between multiple user-level environments, it is still limited to running environments that the kernel initially set up. You will now implement the necessary JOS system calls to allow user environments to create and start other new user environments.
+尽管你的内核现在能够在多个用户级环境之间运行和切换，但它仍然局限于内核最初设置的运行环境。现在，你将实现必要的 JOS 系统调用，以允许用户环境创建和启动其他新用户环境。
 
-Unix provides the fork() system call as its process creation primitive. Unix fork() copies the entire address space of calling process (the parent) to create a new process (the child). The only differences between the two observable from user space are their process IDs and parent process IDs (as returned by getpid and getppid). In the parent, fork() returns the child's process ID, while in the child, fork() returns 0. By default, each process gets its own private address space, and neither process's modifications to memory are visible to the other.
+Unix 提供 fork()系统调用作为它的进程创建原语。Unix fork()复制调用进程(父进程)的整个地址空间来创建一个新进程(子进程)。用户空间中两个可观察对象之间的唯一区别是它们的进程 id 和父进程 id(由 getpid 和 getppid 返回)。在父进程中，fork()返回子进程的进程 ID，而在子进程中，fork()返回 0。默认情况下，每个进程都有自己的私有地址空间，两个进程对内存的修改都不可见。
 
-You will provide a different, more primitive set of JOS system calls for creating new user-mode environments. With these system calls you will be able to implement a Unix-like fork() entirely in user space, in addition to other styles of environment creation. The new system calls you will write for JOS are as follows:
+你将提供一组不同的、更原始的 JOS 系统调用来创建新的用户模式环境。通过这些系统调用，你将能够完全在用户空间中实现类 unix 的 fork()，以及其他类型的环境创建。你将为 JOS 编写的新系统调用如下:
 
 -   sys_exofork:
     This system call creates a new environment with an almost blank slate: nothing is mapped in the user portion of its address space, and it is not runnable. The new environment will have the same register state as the parent environment at the time of the sys_exofork call. In the parent, sys_exofork will return the envid_t of the newly created environment (or a negative error code if the environment allocation failed). In the child, however, it will return 0. (Since the child starts out marked as not runnable, sys_exofork will not actually return in the child until the parent has explicitly allowed this by marking the child runnable using....)
