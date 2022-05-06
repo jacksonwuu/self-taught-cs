@@ -1,4 +1,4 @@
-# Lab 4: Preemptive Multitasking
+# Lab 4: Preemptive Multitasking（可抢占式多任务）
 
 ## 介绍
 
@@ -217,25 +217,25 @@ xv6 Unix 通过将所有来自父节点的数据复制到分配给子节点的�
 
 这是内核需要跟踪的大量信息。您将决定如何处理用户空间中的每个页面错误，而不是采用传统的 Unix 方法，在用户空间中，错误的破坏性较小。这种设计还有一个额外的好处，即允许程序在定义它们的内存区域时具有很大的灵活性;稍后，您将使用用户级页面错误处理来映射和访问基于磁盘的文件系统上的文件。
 
-#### Setting the Page Fault Handler
+#### Setting the Page Fault Handler（设置页错误处理器）
 
-In order to handle its own page faults, a user environment will need to register a page fault handler entrypoint with the JOS kernel. The user environment registers its page fault entrypoint via the new sys_env_set_pgfault_upcall system call. We have added a new member to the Env structure, env_pgfault_upcall, to record this information.
+为了处理自己的页面错误，一个用户环境需要注册一个页错误处理器端点到内核里。用户环境通过新的 sys_env_set_pgfault_upcall 系统调用来注册这个页错误处理端点。我们已经在 Env 结构体里添加了一个新成员，env_pgfault_upcall 来记录这个信息。
 
-Exercise 8. Implement the sys_env_set_pgfault_upcall system call. Be sure to enable permission checking when looking up the environment ID of the target environment, since this is a "dangerous" system call.
+练习 8。实现 sys_env_set_pgfault_upcall 函数调用。确保在查询目标环境 id 的时候做了权限检查，因为这是一个“危险”的系统调用。
 
-#### Normal and Exception Stacks in User Environments
+#### Normal and Exception Stacks in User Environments（用户环境的正常栈和异常栈）
 
-During normal execution, a user environment in JOS will run on the normal user stack: its ESP register starts out pointing at USTACKTOP, and the stack data it pushes resides on the page between USTACKTOP-PGSIZE and USTACKTOP-1 inclusive. When a page fault occurs in user mode, however, the kernel will restart the user environment running a designated user-level page fault handler on a different stack, namely the user exception stack. In essence, we will make the JOS kernel implement automatic "stack switching" on behalf of the user environment, in much the same way that the x86 processor already implements stack switching on behalf of JOS when transferring from user mode to kernel mode!
+当正常执行士，JOS 里的一个用户环境会运行在正常的用户栈上：它的 ESP 寄存器开始指向 USTACKTOP，它推送的数据驻留在 USTACKTOP-PGSIZE 和 USTACKTOP-1 之间。 当一个页错误出现在用户态时，然而，内核会重启用户环境去运行一个委托的用户级页错误处理程序在一个不同的栈上，这个栈被叫做用户异常栈。本质上，我们将让 JOS 内核实现代表用户环境的自动“堆栈切换”，就像 x86 处理器在从用户模式转换到内核模式时已经代表 JOS 实现了堆栈切换一样!
 
-The JOS user exception stack is also one page in size, and its top is defined to be at virtual address UXSTACKTOP, so the valid bytes of the user exception stack are from UXSTACKTOP-PGSIZE through UXSTACKTOP-1 inclusive. While running on this exception stack, the user-level page fault handler can use JOS's regular system calls to map new pages or adjust mappings so as to fix whatever problem originally caused the page fault. Then the user-level page fault handler returns, via an assembly language stub, to the faulting code on the original stack.
+JOS 用户异常栈也是只有一页大小，它的顶部定义在虚拟地址的 UXSTACKTOP，所以确定的用户异常栈在 UXSTACKTOP-PGSIZE 到 UXSTACKTOP-1 之间。当运行在这个异常栈时，这个用户级页错误处理程序可以使用 JOS 的常规系统调用来映射新的页或者调整映射来恢复页面错误导致的任何问题。之后这个用户级页错误处理程序通过一个汇编 stub 返回错误码到原始栈上。
 
-Each user environment that wants to support user-level page fault handling will need to allocate memory for its own exception stack, using the sys_page_alloc() system call introduced in part A.
+每一个想要支持用户级页错误处理的用户环境，都需要为自己的异常栈申请内存，使用 A 部分的 sys_page_alloc()系统调用。
 
-#### Invoking the User Page Fault Handler
+#### Invoking the User Page Fault Handler（触发用户级页错误处理程序）
 
-You will now need to change the page fault handling code in kern/trap.c to handle page faults from user mode as follows. We will call the state of the user environment at the time of the fault the trap-time state.
+你现在需要去修改 kern/trap.c 里的页错误处理代码，来处理来自用户态的页错误。我们将用户环境发生错误时的状态称为 trap-time 状态。
 
-If there is no page fault handler registered, the JOS kernel destroys the user environment with a message as before. Otherwise, the kernel sets up a trap frame on the exception stack that looks like a struct UTrapframe from inc/trap.h:
+如果没有事先注册好的页错误处理程序，JOS 内核就会像之前一样，破坏掉该用户环境，发出一个 message。否则，内核会在异常栈上建立一个 trap frame，看起来像是来自 inc/trap.h 的 UTrapframe 结构体。
 
 ```
                     <-- UXSTACKTOP
@@ -254,27 +254,27 @@ tf_err (error code)
 fault_va            <-- %esp when handler is run
 ```
 
-The kernel then arranges for the user environment to resume execution with the page fault handler running on the exception stack with this stack frame; you must figure out how to make this happen. The fault_va is the virtual address that caused the page fault.
+内核通过构建这个栈帧来帮助恢复用户环境的运行；你必须弄清楚这个是如何发生的。fault_va 是导致页错误时的虚拟地址。
 
-If the user environment is already running on the user exception stack when an exception occurs, then the page fault handler itself has faulted. In this case, you should start the new stack frame just under the current tf->tf_esp rather than at UXSTACKTOP. You should first push an empty 32-bit word, then a struct UTrapframe.
+如果当一个错误出现时，用户环境已经运行在用户异常栈了，然后页错误处理程序它本身发送错误了。在这种情况下，你应该开始一个新的栈帧，就在当前的 tf->tf_esp 之下，而不是 UXSTACKTOP。你应该开始推入一个空的 32 位字，然后推入一个 UTrapframe 结构体。
 
-To test whether tf->tf_esp is already on the user exception stack, check whether it is in the range between UXSTACKTOP-PGSIZE and UXSTACKTOP-1, inclusive.
+要是想测试是否 tf->tf_esp 已经在用户异常栈上，那就查看它是否在 UXSTACKTOP-PGSIZE 和 UXSTACKTOP-1 之间。
 
-Exercise 9. Implement the code in page_fault_handler in kern/trap.c required to dispatch page faults to the user-mode handler. Be sure to take appropriate precautions when writing into the exception stack. (What happens if the user environment runs out of space on the exception stack?)
+练习 9。实现 kern/trap.c 里 page_fault_handler 函数的代码，这个函数在分发页错误的时候被用户级处理程序所需要。在写入异常堆栈时，请确保采取适当的预防措施。（如果用户环境在异常栈上用完了内存空间会怎么样？）
 
-#### User-mode Page Fault Entrypoint
+#### User-mode Page Fault Entrypoint（用户态页错误端点）
 
-Next, you need to implement the assembly routine that will take care of calling the C page fault handler and resume execution at the original faulting instruction. This assembly routine is the handler that will be registered with the kernel using sys_env_set_pgfault_upcall().
+接着，你需要去实现一个汇编例程，它要负责调用 C 语言写的页错误处理程序以及恢复原始指令的执行。这个汇编例程会用 sys_env_set_pgfault_upcall()把它注册到内核里。
 
-Exercise 10. Implement the \_pgfault_upcall routine in lib/pfentry.S. The interesting part is returning to the original point in the user code that caused the page fault. You'll return directly there, without going back through the kernel. The hard part is simultaneously switching stacks and re-loading the EIP.
+练习 10。采用 实现 lib/pfentry.S 里的\_pgfault_upcall 例程。有趣的部分是返回到原来产生页错误的用户代码处。你会直接回到那儿，不需要经过内核。难点在于同时切换栈和重新加载 EIP。
 
-Finally, you need to implement the C user library side of the user-level page fault handling mechanism.
+最终，你需要实现相关的 C 语言用户库。
 
-Exercise 11. Finish set_pgfault_handler() in lib/pgfault.c.
+练习 11。完成 lib/pgfault.c 里的 set_pgfault_handler()。
 
-#### Testing
+#### Testing（测试）
 
-Run user/faultread (make run-faultread). You should see:
+运行 user/faultread（make run-faultread）。你应该看到：
 
 ```
 ...
@@ -295,7 +295,7 @@ i faulted at va deadbeef, err 6
 
 ```
 
-Run user/faultalloc. You should see:
+运行 user/faultalloc。你应该看到：
 
 ```
 ...
@@ -309,9 +309,9 @@ this string was faulted in at cafebffe
 [00001000] free env 00001000
 ```
 
-If you see only the first "this string" line, it means you are not handling recursive page faults properly.
+如果只看到"this string"这一行，这意味着您没有正确地处理递归页面错误。
 
-Run user/faultallocbad. You should see:
+运行 user/faultallocbad。你应该看到：
 
 ```
 ...
@@ -320,13 +320,13 @@ Run user/faultallocbad. You should see:
 [00001000] free env 00001000
 ```
 
-Make sure you understand why user/faultalloc and user/faultallocbad behave differently.
+确保你理解了为什么 user/faultalloc 和 user/faultallocbad 的是不同的。
 
-Challenge! Extend your kernel so that not only page faults, but all types of processor exceptions that code running in user space can generate, can be redirected to a user-mode exception handler. Write user-mode test programs to test user-mode handling of various exceptions such as divide-by-zero, general protection fault, and illegal opcode.
+挑战！扩展你的内核，不仅限于页错误，而且还处理所有用户会产生的错误，可以重定向到用户态异常处理程序。写一些用户态的测试程序来测试用户态的不同错误，比如说除零错误，通用保护错误和非法操作码错误。
 
-### Implementing Copy-on-Write Fork
+### Implementing Copy-on-Write Fork（实现写时复制 Fork）
 
-You now have the kernel facilities to implement copy-on-write fork() entirely in user space.
+现在，您拥有了完全在用户空间中实现 copy-on-write fork()的内核工具。
 
 We have provided a skeleton for your fork() in lib/fork.c. Like dumbfork(), fork() should create a new environment, then scan through the parent environment's entire address space and set up corresponding page mappings in the child. The key difference is that, while dumbfork() copied pages, fork() will initially only copy page mappings. fork() will copy each page only when one of the environments tries to write it.
 
