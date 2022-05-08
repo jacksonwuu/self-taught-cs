@@ -350,9 +350,9 @@ fork()的基本控制流如下：
 
 用户级别的 lib/fork.c 代码必须查看环境的页表来执行上面的几个操作(例如，页面的 PTE 标记为 PTE_COW)。内核在 UVPT 上映射环境的页表正是为了这个目的。它使用了一个[聪明的映射技巧](https://pdos.csail.mit.edu/6.828/2018/labs/lab4/uvpt.html)，使其更容易查找用户代码的 PTE。lib/entry.S 设置 uvpt 和 uvpd，这样你才可以很容易地在 lib/fork.c 里查找页表信息。
 
-Exercise 12. Implement fork, duppage and pgfault in lib/fork.c.
+练习 12。实现 lib/fork.c 里的 fork，duppage 和 pgfault。
 
-Test your code with the forktree program. It should produce the following messages, with interspersed 'new env', 'free env', and 'exiting gracefully' messages. The messages may not appear in this order, and the environment IDs may be different.
+用 forktree 程序来测试你的代码。它应该产生如下消息，分散的‘new env’，‘free env’，‘exiting gracefully’消息。这个消息可能不会按顺序出现，以及环境 ID 可能不同。
 
 ```
 	1000: I am ''
