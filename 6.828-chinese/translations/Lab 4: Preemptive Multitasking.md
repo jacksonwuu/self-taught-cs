@@ -328,27 +328,27 @@ this string was faulted in at cafebffe
 
 现在，您拥有了完全在用户空间中实现 copy-on-write fork()的内核工具。
 
-We have provided a skeleton for your fork() in lib/fork.c. Like dumbfork(), fork() should create a new environment, then scan through the parent environment's entire address space and set up corresponding page mappings in the child. The key difference is that, while dumbfork() copied pages, fork() will initially only copy page mappings. fork() will copy each page only when one of the environments tries to write it.
+我们已经给你提供了一个 fork()的骨架在 lib/fork.c 文件里。像 dumbfork()，fork()应该创建一个新环境，然后扫描父环境的整个地址空间以及创建子环境对应的页映射。关键的不同是，dumbfork()复制页，而 fork()最初只会复制页映射。fork()只有当某个环境尝试写入时才会复制各个页。
 
-The basic control flow for fork() is as follows:
+fork()的基本控制流如下：
 
-1. The parent installs pgfault() as the C-level page fault handler, using the set_pgfault_handler() function you implemented above.
-2. The parent calls sys_exofork() to create a child environment.
-3. For each writable or copy-on-write page in its address space below UTOP, the parent calls duppage, which should map the page copy-on-write into the address space of the child and then remap the page copy-on-write in its own address space. [ Note: The ordering here (i.e., marking a page as COW in the child before marking it in the parent) actually matters! Can you see why? Try to think of a specific case where reversing the order could cause trouble. ] duppage sets both PTEs so that the page is not writeable, and to contain PTE_COW in the "avail" field to distinguish copy-on-write pages from genuine read-only pages.
-   The exception stack is not remapped this way, however. Instead you need to allocate a fresh page in the child for the exception stack. Since the page fault handler will be doing the actual copying and the page fault handler runs on the exception stack, the exception stack cannot be made copy-on-write: who would copy it?
+1. 父环境注册 pgfault()为 C 语言级别的页面错误处理程序，就用你之前实现的 set_pgfault_handler()函数来注册。
+2. 父环境调用 sys_exofork()来创建一个子环境。
+3. 对于它在 UTOP 之下地址空间里每一个可写或写时复制的页，父环境会调用 duppage，应该会映射该页到子环境的地址空间，然后重新映射自己地址空间的该页。【注意：这里的顺序是很重要的（为子环境标记一个页为 COW 要在为父环境标记之前）。你能明白吗？尝试想一个具体的调转顺序会发生问题的情况。】duppage 会在两个过程中都设置 PTE 位，这样每个页都是不可写的，“avail”字段里的 PTE_COW 用来标记写时复制页和真正的只读页。
+   然而，异常栈不会通过这种方式重映射。而是，你需要在子环境里为异常栈申请一个新的页。因为页错误处理函数会做真正的复制，页错误处理函数也会运行在异常栈上，异常栈不能写时复制：谁会复制？
 
-    fork() also needs to handle pages that are present, but not writable or copy-on-write.
+    fork()也需要掌管当前的页，但不是可写的或写时复制。
 
-4. The parent sets the user page fault entrypoint for the child to look like its own.
-5. The child is now ready to run, so the parent marks it runnable.
+4. 父环境为子环境设置用户页错误处理端点，让子环境看起来这个就像是它自己设置的一样。
+5. 子环境现在准备好运行了，所以父环境会标记它为 runnable。
 
-Each time one of the environments writes a copy-on-write page that it hasn't yet written, it will take a page fault. Here's the control flow for the user page fault handler:
+每次某个环境写入一个“写时复制”页时，它会产生一个页错误。如下是用户页错误处理程序的控制流：
 
-1. The kernel propagates the page fault to \_pgfault_upcall, which calls fork()'s pgfault() handler.
-2. pgfault() checks that the fault is a write (check for FEC_WR in the error code) and that the PTE for the page is marked PTE_COW. If not, panic.
-3. pgfault() allocates a new page mapped at a temporary location and copies the contents of the faulting page into it. Then the fault handler maps the new page at the appropriate address with read/write permissions, in place of the old read-only mapping.
+1. 内核将页面错误传播到 \_pgfault_upcall，它会调用 fork()的 pgfault()处理函数。
+2. pgfault()查看这个错误是由一个写操作（查看错误码是不是 FEC_WR）导致的，以及页的 PTE 被标记为 PTE_COW。如果不是，panic。
+3. pgfault()申请一个新的页，这个页映射到一个暂时地址，然后复制错误页的内容进去。然后错误处理程序映射一个新的页到合适的地址，设置好读写权限，以此代替旧的只读映射。
 
-The user-level lib/fork.c code must consult the environment's page tables for several of the operations above (e.g., that the PTE for a page is marked PTE_COW). The kernel maps the environment's page tables at UVPT exactly for this purpose. It uses a [clever mapping trick](https://pdos.csail.mit.edu/6.828/2018/labs/lab4/uvpt.html) to make it to make it easy to lookup PTEs for user code. lib/entry.S sets up uvpt and uvpd so that you can easily lookup page-table information in lib/fork.c.
+用户级别的 lib/fork.c 代码必须查看环境的页表来执行上面的几个操作(例如，页面的 PTE 标记为 PTE_COW)。内核在 UVPT 上映射环境的页表正是为了这个目的。它使用了一个[聪明的映射技巧](https://pdos.csail.mit.edu/6.828/2018/labs/lab4/uvpt.html)，使其更容易查找用户代码的 PTE。lib/entry.S 设置 uvpt 和 uvpd，这样你才可以很容易地在 lib/fork.c 里查找页表信息。
 
 Exercise 12. Implement fork, duppage and pgfault in lib/fork.c.
 
