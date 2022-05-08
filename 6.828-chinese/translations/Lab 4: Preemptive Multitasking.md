@@ -372,45 +372,45 @@ fork()的基本控制流如下：
 	1006: I am '101'
 ```
 
-Challenge! Implement a shared-memory fork() called sfork(). This version should have the parent and child share all their memory pages (so writes in one environment appear in the other) except for pages in the stack area, which should be treated in the usual copy-on-write manner. Modify user/forktree.c to use sfork() instead of regular fork(). Also, once you have finished implementing IPC in part C, use your sfork() to run user/pingpongs. You will have to find a new way to provide the functionality of the global thisenv pointer.
+挑战！实现一个内存分享型 fork()，叫做 sfork()。这个版本应该让父环境和子环境共享所有它们的除了栈区外的内存页（所以写入一个环境也会出现在另一个里）。另外，一旦你在 C 部分实现了 IPC 之后，使用你的 sfork()来运行 user/pingpongs。你会找到一个新方法去提供全局 thisenv 指针功能。
 
-Challenge! Your implementation of fork makes a huge number of system calls. On the x86, switching into the kernel using interrupts has non-trivial cost. Augment the system call interface so that it is possible to send a batch of system calls at once. Then change fork to use this interface.
+挑战！你实现的 fork 会非常多的系统调用。在 x86 里，使用中断切换进内核有很大的代价。增加系统调用接口，这样就可以一次发送一批系统调用。然后更改 fork 来使用此接口。
 
-How much faster is your new fork?
+你的新 fork 变得有多快了？
 
-You can answer this (roughly) by using analytical arguments to estimate how much of an improvement batching system calls will make to the performance of your fork: How expensive is an int 0x30 instruction? How many times do you execute int 0x30 in your fork? Is accessing the TSS stack switch also expensive? And so on...
+你可以（大概）回答这个问题，通过使用这些参数来估计改进版的 fork 有多少性能上的改进：一个 int 0x30 指令的开销有多大？你的 fork 里会执行多少次 int 0x30 指令？TSS 栈切换昂贵吗？等等……
 
-Alternatively, you can boot your kernel on real hardware and really benchmark your code. See the RDTSC (read time-stamp counter) instruction, defined in the IA32 manual, which counts the number of clock cycles that have elapsed since the last processor reset. QEMU doesn't emulate this instruction faithfully (it can either count the number of virtual instructions executed or use the host TSC, neither of which reflects the number of cycles a real CPU would require).
+或者，你可以在真实的硬件上启动你的内核来做一个真正的基准测试你的代码。参见 RDTSC（read time-stamp counter）指令，在 IA32 手册里有定义，它计算上次处理器重置以来经过的时钟周期数。QEMU 不会如实地模拟这个指令（它要么记录虚拟指令的执行数，要么使用主机的 TSC，哪种方法都不会反映所需的真实 CPU 的周期数）。
 
-This ends part B. Make sure you pass all of the Part B tests when you run make grade. As usual, you can hand in your submission with make handin.
+这是 B 部分的结尾，确保你通过了所有 B 部分的测试（运行 make grade）。和往常一样，通过 make handin 来提交作业。
 
-## Part C: Preemptive Multitasking and Inter-Process communication (IPC)
+## Part C: Preemptive Multitasking and Inter-Process communication (IPC)（抢占式多任务和进程间通信）
 
-In the final part of lab 4 you will modify the kernel to preempt uncooperative environments and to allow environments to pass messages to each other explicitly.
+在实验 4 的最后部分，你会修改内核来抢占不合作的内核，来允许环境去显式地传递消息给对方。
 
-### Clock Interrupts and Preemption
+### Clock Interrupts and Preemption（时钟中断和抢占）
 
-Run the user/spin test program. This test program forks off a child environment, which simply spins forever in a tight loop once it receives control of the CPU. Neither the parent environment nor the kernel ever regains the CPU. This is obviously not an ideal situation in terms of protecting the system from bugs or malicious code in user-mode environments, because any user-mode environment can bring the whole system to a halt simply by getting into an infinite loop and never giving back the CPU. In order to allow the kernel to preempt a running environment, forcefully retaking control of the CPU from it, we must extend the JOS kernel to support external hardware interrupts from the clock hardware.
+运行 user/spin 测试程序。这个测试程序 fork 一个子环境，一旦它获取到了 CPU 的控制权，它就会简单地在一个紧凑的循环里无限循环下去。无论是它的父环境还是内核都无法重新获取 CPU。这个很明显不是一个理想的状态来保护系统免受用户态程序的 bug 或恶意代码，因为任何用户态环境可以让导致整个系统停顿，仅仅只是进入了一个无限的循环并且不交出 CPU。为了允许内核去抢占一个运行的环境，强制性夺回 CPU 的控制权，我们必须扩展 JOS 来让它可以支持时钟的硬件中断。
 
-#### Interrupt discipline
+#### Interrupt discipline（中断规律）
 
-External interrupts (i.e., device interrupts) are referred to as IRQs. There are 16 possible IRQs, numbered 0 through 15. The mapping from IRQ number to IDT entry is not fixed. pic_init in picirq.c maps IRQs 0-15 to IDT entries IRQ_OFFSET through IRQ_OFFSET+15.
+外部中断（比如说设备中断）被叫做 IRQ。有 16 个可能的 IRQ，编号 0 到 15。IRQ 编号到 IDT 条目的映射不是固定的。picirq.c 里的 pic_init 映射 IRQ 0-15 到 IDT 条目 IRQ_OFFSET 到 IRQ_OFFSET+15。
 
-In inc/trap.h, IRQ_OFFSET is defined to be decimal 32. Thus the IDT entries 32-47 correspond to the IRQs 0-15. For example, the clock interrupt is IRQ 0. Thus, IDT[IRQ_OFFSET+0] (i.e., IDT[32]) contains the address of the clock's interrupt handler routine in the kernel. This IRQ_OFFSET is chosen so that the device interrupts do not overlap with the processor exceptions, which could obviously cause confusion. (In fact, in the early days of PCs running MS-DOS, the IRQ_OFFSET effectively was zero, which indeed caused massive confusion between handling hardware interrupts and handling processor exceptions!)
+在 inc/trap.h 里，IRQ_OFFSET 被定义为十进制的 32。因此 IDT 条目 32-47 对应于 IRQ 0-15。比如，时钟中断是 IRQ 0。因此，IDT[IRQ_OFFSET+0]（比如说 IDT[32]）包含了内核里用于处理时钟中断处理例程的地址。这个 IRQ_OFFSET 被选择以至于设备中断不会和处理器异常产生重合，不然会产生很明显的困惑。（实际上，早期的 PC 运行了 MS-DOS，这个 IRQ_OFFSET 被高效地设置为 0，这个确实导致了非常多的在处理硬件中断和处理处理器异常之间的困惑！）
 
-In JOS, we make a key simplification compared to xv6 Unix. External device interrupts are always disabled when in the kernel (and, like xv6, enabled when in user space). External interrupts are controlled by the FL_IF flag bit of the %eflags register (see inc/mmu.h). When this bit is set, external interrupts are enabled. While the bit can be modified in several ways, because of our simplification, we will handle it solely through the process of saving and restoring %eflags register as we enter and leave user mode.
+在 JOS 里，我们相对于 xv6 Unix 做了一个关键的简化。处于内核中时，外部设备中断永远被禁用（但是就像 xv6 一样，会在用户空间里启用外部设备中断）。外部中断由位于%eflags 寄存器里的 FL_IF 标志位所控制（参见 inc/mmu.h）。当这个标志位被设置时，外部中断将被允许。虽然这个位可以通过几个方式来修改，因为我们简化了，我们处理的方法只是在我们进入（enter）和离开（leave）用户态时保存和恢复%eflags 寄存器。
 
-You will have to ensure that the FL_IF flag is set in user environments when they run so that when an interrupt arrives, it gets passed through to the processor and handled by your interrupt code. Otherwise, interrupts are masked, or ignored until interrupts are re-enabled. We masked interrupts with the very first instruction of the bootloader, and so far we have never gotten around to re-enabling them.
+你必须确保当用户环境运行时，FL_IF 标志被设置，这样当中断到达时，它被传递到处理器，由你的中断代码处理。否则，中断被屏蔽，或被忽略，直到中断被重新启用。我们用引导加载程序的第一个指令屏蔽了中断，到目前为止，我们还没有设法重新启用它们。
 
-Exercise 13. Modify kern/trapentry.S and kern/trap.c to initialize the appropriate entries in the IDT and provide handlers for IRQs 0 through 15. Then modify the code in env_alloc() in kern/env.c to ensure that user environments are always run with interrupts enabled.
+练习 13。修改 kern/trapentry.S 和 kern/trap.c 去初始化 IDT 以适当的条目，为 IRQ 0-15 提供处理程序。然后修改 kern/env.c 里的 env_alloc()的代码来确保用户环境总是运行的时候开启了中断。
 
-Also uncomment the sti instruction in sched_halt() so that idle CPUs unmask interrupts.
+还要取消 sched_halt()中的 sti 指令的注释，以便把空闲 CPU 的中断取消掩码（开启中断）。
 
-The processor never pushes an error code when invoking a hardware interrupt handler. You might want to re-read section 9.2 of the [80386 Reference Manual](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm), or section 5.8 of the [IA-32 Intel Architecture Software Developer's Manual, Volume 3](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf), at this time.
+处理器在调用硬件中断处理程序时从不推送错误代码。此时，你可能想要重读[80386 参考手册](https://pdos.csail.mit.edu/6.828/2018/readings/i386/toc.htm)的 9.2 小结，或者[IA-32 Intel Architecture Software Developer's Manual, Volume 3](https://pdos.csail.mit.edu/6.828/2018/readings/ia32/IA32-3A.pdf)的 5.8 小结。
 
-After doing this exercise, if you run your kernel with any test program that runs for a non-trivial length of time (e.g., spin), you should see the kernel print trap frames for hardware interrupts. While interrupts are now enabled in the processor, JOS isn't yet handling them, so you should see it misattribute each interrupt to the currently running user environment and destroy it. Eventually it should run out of environments to destroy and drop into the monitor.
+做完这个练习之后，如果你在内核中运行一段时间的测试程序(例如，spin)，你应该看到内核打印硬件中断的陷阱帧（trap frame）。虽然现在处理器中启用了中断，JOS 还没有处理它们，所以你应该看到它把每个中断错误地归结为当前运行的用户环境，然后把用户环境给销毁掉。最终它应该会会把所有的环境都销毁掉，然后掉进 monitor。
 
-### Handling Clock Interrupts
+### Handling Clock Interrupts（处理时钟中断）
 
 In the user/spin program, after the child environment was first run, it just spun in a loop, and the kernel never got control back. We need to program the hardware to generate clock interrupts periodically, which will force control back to the kernel where we can switch control to a different user environment.
 
