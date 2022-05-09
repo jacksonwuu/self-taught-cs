@@ -193,13 +193,13 @@ QEMU 为什么会这样开始呢？英特尔就是这样设计 8088 处理器的
    = 0xffff0
 ```
 
-0xffff0 is 16 bytes before the end of the BIOS (0x100000). Therefore we shouldn't be surprised that the first thing that the BIOS does is jmp backwards to an earlier location in the BIOS; after all how much could it accomplish in just 16 bytes?
+0xffff0 是 BIOS 结尾（0x100000）之前的 16 字节。因此不要惊讶做的第一件 BIOS 做的事情是 jmp 跳转回 BIOS 更早之前的位置；毕竟，16 个字节能完成多少任务?
 
-Exercise 2. Use GDB's si (Step Instruction) command to trace into the ROM BIOS for a few more instructions, and try to guess what it might be doing. You might want to look at [Phil Storrs I/O Ports Description](http://web.archive.org/web/20040404164813/members.iweb.net.au/~pstorr/pcbook/book2/book2.htm), as well as other materials on the [6.828 reference materials page](https://pdos.csail.mit.edu/6.828/2018/reference.html). No need to figure out all the details - just the general idea of what the BIOS is doing first.
+练习 2。使用 GDB 的 si（Step Instruction）命令来追踪 ROM BIOS 更多的指令，然后试着猜猜它在做什么。你可能想要看一下[Phil Storrs I/O Ports Description](http://web.archive.org/web/20040404164813/members.iweb.net.au/~pstorr/pcbook/book2/book2.htm)，以及其他材料[6.828 reference materials page](https://pdos.csail.mit.edu/6.828/2018/reference.html)。不需要弄清楚所有的细节——只要先弄懂 BIOS 的大概运作就行了。
 
-When the BIOS runs, it sets up an interrupt descriptor table and initializes various devices such as the VGA display. This is where the "Starting SeaBIOS" message you see in the QEMU window comes from.
+当 BIOS 运行时，它设置一个中断描述符表并初始化各种设备，例如 VGA 显示器。这就是你在 QEMU 窗口看到的 "Starting SeaBIOS" 消息来自的地方。
 
-After initializing the PCI bus and all the important devices the BIOS knows about, it searches for a bootable device such as a floppy, hard drive, or CD-ROM. Eventually, when it finds a bootable disk, the BIOS reads the boot loader from the disk and transfers control to it.
+在 BIOS 初始化它所知道的 PCI bus 和所有重要的设备之后，它搜索一个可启动设备，比如软盘、硬盘或者 CD-ROM。最终，当它找到一个可启动的磁盘时，BIOS 读取磁盘里的 boot loader，然后把控制权转交给它。
 
 ## Part 2: The Boot Loader
 
