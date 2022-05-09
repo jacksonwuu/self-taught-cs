@@ -191,11 +191,11 @@ Unix 提供 fork()系统调用作为它的进程创建原语。Unix fork()复制
 
 我们已经在测试程序 user/dumbfork.c 中提供了一个类 unix 的 fork()的非常原始的实现。这个测试程序使用上面的系统调用来创建和运行带有自己地址空间副本的子环境。然后，这两个环境使用 sys_yield 在前面的练习中来回切换。父进程在迭代 10 次后退出，而子进程在迭代 20 次后退出。
 
-练习 7。实现 kern/syscall.c 中描述的系统调用，并确保 syscall()调用它们。您将需要使用 kern/pmap.c 和 kern/env.c 中的各种函数，特别是 envid2env()。现在，无论何时调用 envid2env()，都要在 checkperm 参数中传递 1。确保您检查了任何无效的系统调用参数，在这种情况下返回-E_INVAL。使用 user/dumbfork 测试你的 JOS 内核，确保它能正常工作。
+练习 7。实现 kern/syscall.c 中描述的系统调用，并确保 syscall()调用它们。你将需要使用 kern/pmap.c 和 kern/env.c 中的各种函数，特别是 envid2env()。现在，无论何时调用 envid2env()，都要在 checkperm 参数中传递 1。确保你检查了任何无效的系统调用参数，在这种情况下返回-E_INVAL。使用 user/dumbfork 测试你的 JOS 内核，确保它能正常工作。
 
-挑战!添加必要的附加系统调用，以读取现有环境的所有重要状态并设置它。然后实现一个用户模式程序，它分叉一个子环境，运行它一段时间(例如，sys_yield()的几个迭代)，然后获取子环境的完整快照或检查点，运行子环境一段时间，最后将子环境恢复到它在检查点时的状态，并从那里继续它。因此，您可以有效地从中间状态“重放”子环境的执行。使孩子环境执行一些与用户的交互使用 sys_cgetc()或 readline(),以便用户可以查看和改变其内部状态,与你的检查站,并验证/重启可以给孩子环境的选择性失忆,这使得“忘记”,超过某特定点上发生的一切。
+挑战!添加必要的附加系统调用，以读取现有环境的所有重要状态并设置它。然后实现一个用户模式程序，它分叉一个子环境，运行它一段时间(例如，sys_yield()的几个迭代)，然后获取子环境的完整快照或检查点，运行子环境一段时间，最后将子环境恢复到它在检查点时的状态，并从那里继续它。因此，你可以有效地从中间状态“重放”子环境的执行。使孩子环境执行一些与用户的交互使用 sys_cgetc()或 readline(),以便用户可以查看和改变其内部状态,与你的检查站,并验证/重启可以给孩子环境的选择性失忆,这使得“忘记”,超过某特定点上发生的一切。
 
-这完成了实验室的 A 部分;当你运行 make grade 时，确保它通过所有的 A 部分测试，然后像往常一样使用 make handin 交上来。如果您试图找出为什么某个特定的测试用例失败，运行./grade-lab4 -v，它将显示内核构建的输出，并为每个测试运行 QEMU，直到一个测试失败。当测试失败时，脚本将停止，然后您可以检查 jos。出来看看内核实际打印了什么。
+这完成了实验室的 A 部分;当你运行 make grade 时，确保它通过所有的 A 部分测试，然后像往常一样使用 make handin 交上来。如果你试图找出为什么某个特定的测试用例失败，运行./grade-lab4 -v，它将显示内核构建的输出，并为每个测试运行 QEMU，直到一个测试失败。当测试失败时，脚本将停止，然后你可以检查 jos。出来看看内核实际打印了什么。
 
 ## Part B: Copy-on-Write Fork（写时复制 Fork）
 
@@ -207,15 +207,15 @@ xv6 Unix 通过将所有来自父节点的数据复制到分配给子节点的�
 
 由于这个原因，Unix 的后续版本利用虚拟内存硬件，允许父进程和子进程共享映射到各自地址空间的内存，直到其中一个进程真正修改它。这种技术称为写时复制。要做到这一点，在 fork()上，内核会将地址空间映射从父节点复制到子节点，而不是映射页面的内容，同时将现在共享的页面标记为只读。当两个进程中的一个试图写入这些共享页面时，该进程将出现页面错误。在这一点上，Unix 内核意识到页面实际上是一个“虚拟”或“写时复制”副本，因此它为出现故障的进程创建了一个新的、私有的、可写的页面副本。通过这种方式，在实际写入各个页面之前，不会实际复制各个页面的内容。这种优化使得子进程中 fork()后跟 exec()的代价更低:子进程在调用 exec()之前可能只需要复制一页(堆栈的当前页)。
 
-在本实验的下一部分中，您将实现一个“适当的”类 unix 的带有 copy-on-write 的 fork()，作为一个用户空间库例程。在用户空间中实现 fork()和 copy-on-write 支持的好处是，内核仍然更简单，因此更有可能是正确的。它还允许单独的用户模式程序为 fork()定义它们自己的语义。如果一个程序需要一个稍微不同的实现(例如，像 dumbfork()这样代价昂贵的总是复制版本，或者父和子实际上在之后共享内存的版本)，那么它可以很容易地提供自己的实现。
+在本实验的下一部分中，你将实现一个“适当的”类 unix 的带有 copy-on-write 的 fork()，作为一个用户空间库例程。在用户空间中实现 fork()和 copy-on-write 支持的好处是，内核仍然更简单，因此更有可能是正确的。它还允许单独的用户模式程序为 fork()定义它们自己的语义。如果一个程序需要一个稍微不同的实现(例如，像 dumbfork()这样代价昂贵的总是复制版本，或者父和子实际上在之后共享内存的版本)，那么它可以很容易地提供自己的实现。
 
 ### User-level page fault handling（用户级页错误处理）
 
-用户级 write-copy-fork()需要知道写保护页面上的页面错误，所以这是您首先要实现的。写时复制只是用户级页面错误处理的许多可能用途之一。
+用户级 write-copy-fork()需要知道写保护页面上的页面错误，所以这是你首先要实现的。写时复制只是用户级页面错误处理的许多可能用途之一。
 
 设置一个地址空间是很常见的，这样页面错误就可以指示什么时候需要执行某些操作。例如，大多数 Unix 内核最初只映射一个新进程的堆栈区域中的单个页面，然后随着进程的堆栈消耗增加，“按需”分配和映射额外的堆栈页面，并导致尚未映射的堆栈地址的页面错误。典型的 Unix 内核必须跟踪在进程空间的每个区域发生页面错误时应该采取的操作。例如，堆栈区域中的故障通常会分配和映射物理内存的新页。程序的 BSS 区域中的错误通常会分配一个新页面，用零填充它，并映射它。在具有按需分页可执行文件的系统中，文本区域中的错误将从磁盘中读取相应的二进制文件页，然后映射它。
 
-这是内核需要跟踪的大量信息。您将决定如何处理用户空间中的每个页面错误，而不是采用传统的 Unix 方法，在用户空间中，错误的破坏性较小。这种设计还有一个额外的好处，即允许程序在定义它们的内存区域时具有很大的灵活性;稍后，您将使用用户级页面错误处理来映射和访问基于磁盘的文件系统上的文件。
+这是内核需要跟踪的大量信息。你将决定如何处理用户空间中的每个页面错误，而不是采用传统的 Unix 方法，在用户空间中，错误的破坏性较小。这种设计还有一个额外的好处，即允许程序在定义它们的内存区域时具有很大的灵活性;稍后，你将使用用户级页面错误处理来映射和访问基于磁盘的文件系统上的文件。
 
 #### Setting the Page Fault Handler（设置页错误处理器）
 
@@ -309,7 +309,7 @@ this string was faulted in at cafebffe
 [00001000] free env 00001000
 ```
 
-如果只看到"this string"这一行，这意味着您没有正确地处理递归页面错误。
+如果只看到"this string"这一行，这意味着你没有正确地处理递归页面错误。
 
 运行 user/faultallocbad。你应该看到：
 
@@ -326,7 +326,7 @@ this string was faulted in at cafebffe
 
 ### Implementing Copy-on-Write Fork（实现写时复制 Fork）
 
-现在，您拥有了完全在用户空间中实现 copy-on-write fork()的内核工具。
+现在，你拥有了完全在用户空间中实现 copy-on-write fork()的内核工具。
 
 我们已经给你提供了一个 fork()的骨架在 lib/fork.c 文件里。像 dumbfork()，fork()应该创建一个新环境，然后扫描父环境的整个地址空间以及创建子环境对应的页映射。关键的不同是，dumbfork()复制页，而 fork()最初只会复制页映射。fork()只有当某个环境尝试写入时才会复制各个页。
 
@@ -446,30 +446,30 @@ lapic_init 和 pic_init（来自于 init.c 里的 i386_init），我们已经为
 
 同样地，库函数 ipc_send 会重复调用 sys_ipc_try_send 直到发送成功。
 
-#### Transferring Pages（转交内存页）
+#### Transferring Pages（传递内存页）
 
-当一个环境调用 sys_ipc_recv 带着一个可用的 dstva 参数（在 UTOP 之下），表明这个环境想要接收到一个页映射。如果发送者发送一个页，那么这个页应该映射到接收者的地址空间的 dstva 处。如果接收者已经有一个页映射在 dstva，那么就把已经映射的这个页取消映射。
+当一个环境调用 sys_ipc_recv 带着一个可用的 dstva 参数（这个值在 UTOP 之下），表明这个环境想要接收到一个页映射。如果发送者发送一个页，那么这个页应该映射到接收者的地址空间的 dstva 处。如果接收者已经有一个页映射在 dstva，那么就把已经映射的这个页取消映射。
 
-When an environment calls sys_ipc_try_send with a valid srcva (below UTOP), it means the sender wants to send the page currently mapped at srcva to the receiver, with permissions perm. After a successful IPC, the sender keeps its original mapping for the page at srcva in its address space, but the receiver also obtains a mapping for this same physical page at the dstva originally specified by the receiver, in the receiver's address space. As a result this page becomes shared between the sender and receiver.
+当一个环境调用 sys_ipc_try_send 带着一个可用的 srcva 参数（这个值在 UTOP 之下），这表明发送者想要去发送当前映射在 srcva 的页（带着权限位）给接收者。IPC 成功之后，发送者保留它地址空间原始映射在 srcva 的页，但是接收者也获取了对同一个物理页的映射，也就是接收者指定的 dstva （接收者的地址空间）所映射的物理页。最终的结果就是发送者和接收者共享这个页。
 
-If either the sender or the receiver does not indicate that a page should be transferred, then no page is transferred. After any IPC the kernel sets the new field env_ipc_perm in the receiver's Env structure to the permissions of the page received, or zero if no page was received.
+如果发送者和接收者其中之一没有指定要传递内存页，那么就没有页会被传递。在任何 IPC 之后，内核都会将接收方的 Env 结构体中的新字段 env_ipc_perm 设置为所接收页的权限，如果没有接收页，则设置为 0。
 
 #### Implementing IPC（实现 IPC）
 
-Exercise 15. Implement sys_ipc_recv and sys_ipc_try_send in kern/syscall.c. Read the comments on both before implementing them, since they have to work together. When you call envid2env in these routines, you should set the checkperm flag to 0, meaning that any environment is allowed to send IPC messages to any other environment, and the kernel does no special permission checking other than verifying that the target envid is valid.
+练习 15。实现 kern/syscall.c 里的 sys_ipc_recv 和 sys_ipc_send。在实现它们之前，先读一下注释，因为它们需要协同工作。当你调用这些例程里的 envid2env 时，你应该设置 checkperm 标志位为 0，意思是任何环境都被允许发送 IPC 消息给任何其他的环境，这样除了验证目标 envid 是否有效外，内核不进行特殊的权限检查。
 
-Then implement the ipc_recv and ipc_send functions in lib/ipc.c.
+然后实现 lib/ipc.c 里的 ipc_recv 和 ipc_send 函数。
 
-Use the user/pingpong and user/primes functions to test your IPC mechanism. user/primes will generate for each prime number a new environment until JOS runs out of environments. You might find it interesting to read user/primes.c to see all the forking and IPC going on behind the scenes.
+使用 user/pingpong 和 user/primes 函数去测试你的 IPC 机制。user/primes 会为每个质数生成一个新环境直到 JOS 用完所有的环境。你可能会发现读 user/primes.c 很有趣，可以看看背后的一切的 fork 和 IPC 是怎么弄的。
 
-Challenge! Why does ipc_send have to loop? Change the system call interface so it doesn't have to. Make sure you can handle multiple environments trying to send to one environment at the same time.
+挑战！为什么 ipc_send 要循环？修改系统调用接口让它不需要这样做。确保你可以这种情况：处理多个环境同时尝试发送到一个环境。
 
-Challenge! The prime sieve is only one neat use of message passing between a large number of concurrent programs. Read C. A. R. Hoare, ``Communicating Sequential Processes,'' Communications of the ACM 21(8) (August 1978), 666-667, and implement the matrix multiplication example.
+挑战！初始筛选只是在大量并发程序之间传递消息的一种巧妙使用。阅读 C. A. R. Hoare, ``Communicating Sequential Processes,'' Communications of the ACM 21(8) (August 1978), 666-667，然后实现矩阵乘法的例子。
 
-Challenge! One of the most impressive examples of the power of message passing is Doug McIlroy's power series calculator, described in [M. Douglas McIlroy, ``Squinting at Power Series,'' Software--Practice and Experience, 20(7) (July 1990), 661-683](https://swtch.com/~rsc/thread/squint.pdf). Implement his power series calculator and compute the power series for sin(x+x^3).
+挑战！Doug McIlroy 的幂级数计算器是消息传递功能最令人印象深刻的例子之一，在[M. Douglas McIlroy, ``Squinting at Power Series,'' Software--Practice and Experience, 20(7) (July 1990), 661-683](https://swtch.com/~rsc/thread/squint.pdf)有描述。实现他的幂级数计算器，计算 sin(x+x^3)的幂级数。
 
-Challenge! Make JOS's IPC mechanism more efficient by applying some of the techniques from Liedtke's paper, [Improving IPC by Kernel Design](http://dl.acm.org/citation.cfm?id=168633), or any other tricks you may think of. Feel free to modify the kernel's system call API for this purpose, as long as your code is backwards compatible with what our grading scripts expect.
+挑战！通过应用 Liedtke 论文中的一些技术，使 JOS 的 IPC 机制更加高效，[Improving IPC by Kernel Design](http://dl.acm.org/citation.cfm?id=168633)，或者其他你能想到的技巧。为此，你可以随意修改内核的系统调用 API，只要你的代码是向后兼容我们的评分脚本所期望的。
 
-This ends part C. Make sure you pass all of the make grade tests and don't forget to write up your answers to the questions and a description of your challenge exercise solution in answers-lab4.txt.
+这是部分 C 的结尾。确保你通过了所有的 make grade 测试，不要忘记在 answer-lab4.txt 中写下你的问题答案和你的挑战练习解决方案的描述。
 
-Before handing in, use git status and git diff to examine your changes and don't forget to git add answers-lab4.txt. When you're ready, commit your changes with git commit -am 'my solutions to lab 4', then make handin and follow the directions.
+在递交之前，使用 git status 和 git diff 来查看你的修改，不要忘记 git add answer-lab4.txt。当你准备好了，就用 git commit -am 'my solutions to lab 4'来提交你的修改，然后 make handin。
