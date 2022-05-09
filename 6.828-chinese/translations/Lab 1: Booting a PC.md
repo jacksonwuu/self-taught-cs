@@ -267,73 +267,73 @@ athena% objdump -h obj/kern/kernel
 
 您将看到比上面列出的更多的部分，但其他部分对我们的目的并不重要。其他的大多数用来保存调试信息，这些信息通常包含在程序的可执行文件中，但不会被程序加载器加载到内存中。
 
-Take particular note of the "VMA" (or link address) and the "LMA" (or load address) of the .text section. The load address of a section is the memory address at which that section should be loaded into memory.
+特别注意.text 段的“VMA”（link address）和“LMA”（load address）。一个段的加载地址就是该段应该被加载进内存的地址。
 
-The link address of a section is the memory address from which the section expects to execute. The linker encodes the link address in the binary in various ways, such as when the code needs the address of a global variable, with the result that a binary usually won't work if it is executing from an address that it is not linked for. (It is possible to generate position-independent code that does not contain any such absolute addresses. This is used extensively by modern shared libraries, but it has performance and complexity costs, so we won't be using it in 6.828.)
+一个段的链接地址是该段预期执行的地址。链接器有几种方式把链接地址编码为二进制，比如说当代码需要全局变量的地址时，其结果是，如果从一个没有链接的地址执行，该二进制通常不会工作。（可以生成不包含任何绝对地址的位置无关代码。现代共享库广泛使用它，但它有性能和复杂性方面的代价，所以我们不会在 6.828 中使用它。）
 
-Typically, the link and load addresses are the same. For example, look at the .text section of the boot loader:
+通常，链接和加载地址是相同的。例如，查看 boot loader 的.text 部分:
 
 ```
 athena% objdump -h obj/boot/boot.out
 ```
 
-The boot loader uses the ELF program headers to decide how to load the sections. The program headers specify which parts of the ELF object to load into memory and the destination address each should occupy. You can inspect the program headers by typing:
+boot loader 使用 ELF 程序头来决定如何加载这些段。程序头指定将 ELF 对象的哪些部分加载到内存中，以及每个部分应该占用的目标地址。你可以查看程序头，键入：
 
 ```
 athena% objdump -x obj/kern/kernel
 ```
 
-The program headers are then listed under "Program Headers" in the output of objdump. The areas of the ELF object that need to be loaded into memory are those that are marked as "LOAD". Other information for each program header is given, such as the virtual address ("vaddr"), the physical address ("paddr"), and the size of the loaded area ("memsz" and "filesz").
+程序头会在 objdump 的输出的"Program Headers"之下列出。ELF 对象中需要加载到内存的区域是那些标记为“LOAD”的区域。给出了每个程序头的其他信息，如虚拟地址(“vaddr”)、物理地址(“paddr”)和加载区域的大小(“memsz”和“filesz”)。
 
-Back in boot/main.c, the ph->p_pa field of each program header contains the segment's destination physical address (in this case, it really is a physical address, though the ELF specification is vague on the actual meaning of this field).
+回到 boot/main.c，每个程序头的 ph->p_pa 字段包含了段的目标物理地址（在这种情况下，它真的是一个物理地址，虽然 ELF 标准对于这个字段的定义很模糊。）
 
-The BIOS loads the boot sector into memory starting at address 0x7c00, so this is the boot sector's load address. This is also where the boot sector executes from, so this is also its link address. We set the link address by passing -Ttext 0x7C00 to the linker in boot/Makefrag, so the linker will produce the correct memory addresses in the generated code.
+BIOS 加载 boot 扇区到内存里，在地址 0x7c00 处开始，所以这个是 boot 扇区的加载地址。这也是 boot 扇区执行的位置，所以这也是它的链接地址。我们设置链接地址，通过 boot/Makefrag 传入参数 -Ttext 0x7c00 给链接器来实现，所以链接器会在生成的代码里加入正确的内存地址。
 
-Exercise 5. Trace through the first few instructions of the boot loader again and identify the first instruction that would "break" or otherwise do the wrong thing if you were to get the boot loader's link address wrong. Then change the link address in boot/Makefrag to something wrong, run make clean, recompile the lab with make, and trace into the boot loader again to see what happens. Don't forget to change the link address back and make clean again afterward!
+练习 5。再次追踪 boot loader 的最开始的几个指令，然后找出如果 boot loader 的链接地址错误的话会在哪个地址第一次出现“break”或其他错误。然后修改 boot/Makefrag 里的链接地址为错误的地址，运行 make clean，重新编译 make，然后再次追踪 boot loader 去看看会发生什么。不要忘了把链接地址给修改回去然后再重新编译回去。
 
-Look back at the load and link addresses for the kernel. Unlike the boot loader, these two addresses aren't the same: the kernel is telling the boot loader to load it into memory at a low address (1 megabyte), but it expects to execute from a high address. We'll dig in to how we make this work in the next section.
+回顾一下内核的链接和加载地址。不像 boot loader，这两个地址不一样：内核告诉 boot loader 去把它加载到内存的低地址（1M），但是期望从高地址开始执行。我们会在下一节看看如何做到这一点。
 
-Besides the section information, there is one more field in the ELF header that is important to us, named e_entry. This field holds the link address of the entry point in the program: the memory address in the program's text section at which the program should begin executing. You can see the entry point:
+在段信息之外，ELF 头里还有另外一个字段对我们很重要，叫做 e_entry。这个字段持有程序入口的链接地址：在 text 段中程序应该执行的内存地址。你可以看到入口点：
 
 ```
 athena% objdump -f obj/kern/kernel
 ```
 
-You should now be able to understand the minimal ELF loader in boot/main.c. It reads each section of the kernel from disk into memory at the section's load address and then jumps to the kernel's entry point.
+你应该现在可以理解 boot/main.c 的最小 ELF loader 程序了。它从磁盘把内核的每个部分都读取出来，放到内存的加载地址里，然后跳转到内核的入口点。
 
-Exercise 6. We can examine memory using GDB's x command. The [GDB manual](https://sourceware.org/gdb/current/onlinedocs/gdb/Memory.html) has full details, but for now, it is enough to know that the command x/Nx ADDR prints N words of memory at ADDR. (Note that both 'x's in the command are lowercase.) Warning: The size of a word is not a universal standard. In GNU assembly, a word is two bytes (the 'w' in xorw, which stands for word, means 2 bytes).
+练习 6。我们可以用 GDB 的 x 命令来查看内存。[GDB manual](https://sourceware.org/gdb/current/onlinedocs/gdb/Memory.html)有完整的细节，但是现在，知道 x/Nx ADDR 命令会打印 ADDR 的 N 字长内存就够了。（注意两个 x 都是小写的。）警告：word 的长度不是广泛的标准。在 GNU 汇编代码里，一个 word 是两个字节（xorw 里的 w 代表 word，意思是两个字节）。
 
-Reset the machine (exit QEMU/GDB and start them again). Examine the 8 words of memory at 0x00100000 at the point the BIOS enters the boot loader, and then again at the point the boot loader enters the kernel. Why are they different? What is there at the second breakpoint? (You do not really need to use QEMU to answer this question. Just think.)
+重置机器(退出 QEMU/GDB 并重新启动它们)。在 BIOS 进入 boot loader 的 0x00100000 处的 8 个 word 长度的内存，然后再在 boot loader 进入内核时做一遍。为什么他们不一样？在第二个断点处有什么？（你不需要 QEMU 就能回答这个问题，思考就行。）
 
-## Part 3: The Kernel
+## Part 3: The Kernel（第 3 部分：内核）
 
-We will now start to examine the minimal JOS kernel in a bit more detail. (And you will finally get to write some code!). Like the boot loader, the kernel begins with some assembly language code that sets things up so that C language code can execute properly.
+我们现在查看最小的 JOS 内核的更多细节。（然后你要写一些代码！）就像 boot loader，内核是从一些汇编代码开始的，这些汇编代码设置一些事情来让 C 代码可以恰当执行。
 
-### Using virtual memory to work around position dependence
+### Using virtual memory to work around position dependence（使用虚拟内存来解决位置依赖问题）
 
-When you inspected the boot loader's link and load addresses above, they matched perfectly, but there was a (rather large) disparity between the kernel's link address (as printed by objdump) and its load address. Go back and check both and make sure you can see what we're talking about. (Linking the kernel is more complicated than the boot loader, so the link and load addresses are at the top of kern/kernel.ld.)
+当您检查上面的 boot loader 链接和加载地址时，它们完全匹配，但是内核的链接地址(由 objdump 打印)和它的加载地址之间有一个(相当大的)差异。回去检查一下，确保你能明白我们在说什么。(链接内核比 boot loader 更复杂，所以链接和加载地址在 kern/kernel.ld 的顶部。)
 
-Operating system kernels often like to be linked and run at very high virtual address, such as 0xf0100000, in order to leave the lower part of the processor's virtual address space for user programs to use. The reason for this arrangement will become clearer in the next lab.
+操作系统内核经常链接并运行在非常高的虚拟地址，比如 0xf0100000，为了给处理器虚拟地址空间的低处留给用户程序来用。这种安排的原因在下一个实验室中将会变得更清楚。
 
-Many machines don't have any physical memory at address 0xf0100000, so we can't count on being able to store the kernel there. Instead, we will use the processor's memory management hardware to map virtual address 0xf0100000 (the link address at which the kernel code expects to run) to physical address 0x00100000 (where the boot loader loaded the kernel into physical memory). This way, although the kernel's virtual address is high enough to leave plenty of address space for user processes, it will be loaded in physical memory at the 1MB point in the PC's RAM, just above the BIOS ROM. This approach requires that the PC have at least a few megabytes of physical memory (so that physical address 0x00100000 works), but this is likely to be true of any PC built after about 1990.
+许多机器没有在 0xf010000 处的物理内存，所以我们不能指望把内核存储在那里。反而，我们会使用处理器的内存管理硬件（译者注：也就是 MMU）来映射虚拟地址 0xf0100000（内核代码期望去运行的链接地址）到物理地址 0x00100000（boot loader 加载内核进物理内存的位置）。通过这种方式，尽管内核的虚拟地址足够高，可以为用户进程留下足够的地址空间，但它将被加载到 PC RAM 中物理内存的 1MB 处，就在 BIOS ROM 上面。这种方法要求 PC 至少有几兆字节的物理内存(这样物理地址 0x00100000 才行)，但这可能适用于 1990 年以后构建的任何 PC。
 
-In fact, in the next lab, we will map the entire bottom 256MB of the PC's physical address space, from physical addresses 0x00000000 through 0x0fffffff, to virtual addresses 0xf0000000 through 0xffffffff respectively. You should now see why JOS can only use the first 256MB of physical memory.
+实际上，在下一个实验中，我们会映射 PC 的整个底部 256MB 的物理地址空间，从物理地址 0x00000000 到 0x0fffffff，分别由虚拟地址 0xf0000000 到 0xffffffff 所映射。你现在应该知道为什么 JOS 可以使用物理地址的最开头的 256MB。
 
-For now, we'll just map the first 4MB of physical memory, which will be enough to get us up and running. We do this using the hand-written, statically-initialized page directory and page table in kern/entrypgdir.c. For now, you don't have to understand the details of how this works, just the effect that it accomplishes. Up until kern/entry.S sets the CR0_PG flag, memory references are treated as physical addresses (strictly speaking, they're linear addresses, but boot/boot.S set up an identity mapping from linear addresses to physical addresses and we're never going to change that). Once CR0_PG is set, memory references are virtual addresses that get translated by the virtual memory hardware to physical addresses. entry_pgdir translates virtual addresses in the range 0xf0000000 through 0xf0400000 to physical addresses 0x00000000 through 0x00400000, as well as virtual addresses 0x00000000 through 0x00400000 to physical addresses 0x00000000 through 0x00400000. Any virtual address that is not in one of these two ranges will cause a hardware exception which, since we haven't set up interrupt handling yet, will cause QEMU to dump the machine state and exit (or endlessly reboot if you aren't using the 6.828-patched version of QEMU).
+现在，我们将只映射第一个 4MB 的物理内存，这将足以让我们启动和运行。我们手写来完成这个，静态初始化 kern/entrypgdir.c 里的页目录和页表。到现在，你不需要了解它的实现细节，你只需要它取得的效果。在 kern/entry.S 设置 CR0_PG 标志位之前，内存引用都会被视为物理地址（杨哥来说，他们是线性地址，但是 boot/boot.S 设置一个特定的从线性地址到物理地址的映射，我们也不会修改这个）。一旦 CR0_PG 被设置，内存引用是由虚拟内存硬件转换为物理地址的虚拟地址。entry_pgdir 把虚拟地址的 0xf0000000 到 0xf0400000 的范围转换为物理地址的 0x00000000 到 0x00400000 范围，以及虚拟地址 0x00000000 到 0x00400000 到物理地址 0x00000000 到 0x00400000。任何虚拟地址不在这两个范围内的话，就会产生一个硬件异常，因为我们还没有设置好中断处理，所以它会导致 QEMU 去 dump 的机器状态并退出（或者无限重启，如果你没有使用 QEMU 的 6.828 补丁版本）。
 
-Exercise 7. Use QEMU and GDB to trace into the JOS kernel and stop at the movl %eax, %cr0. Examine memory at 0x00100000 and at 0xf0100000. Now, single step over that instruction using the stepi GDB command. Again, examine memory at 0x00100000 and at 0xf0100000. Make sure you understand what just happened.
+练习 7。使用 QEMU 和 GDB 来追踪 JOS 内核，然后在 movl %eax, %cr0 处停止。检查 0x00100000 和 0xf0100000 处的内存。现在，使用 steppi GDB 命令跳过该指令。再一次，检查 0x00100000 和 0xf0100000 处的内存。确保你理解发生了什么。
 
-What is the first instruction after the new mapping is established that would fail to work properly if the mapping weren't in place? Comment out the movl %eax, %cr0 in kern/entry.S, trace into it, and see if you were right.
+建立新映射后，如果映射不到位，将无法正常工作的第一个指令是什么？注释掉 kern/entry.S 的 movl %eax, %cr0，追踪它，看看你是不是对的。
 
-### Formatted Printing to the Console
+### Formatted Printing to the Console（格式化打印到控制台）
 
-Most people take functions like printf() for granted, sometimes even thinking of them as "primitives" of the C language. But in an OS kernel, we have to implement all I/O ourselves.
+大多数人认为 printf()这样的函数是理所当然的，有时甚至认为它们是 C 语言的“原语”。但是在 OS 内核里，我们要自己去实现所有的 I/O。
 
-Read through kern/printf.c, lib/printfmt.c, and kern/console.c, and make sure you understand their relationship. It will become clear in later labs why printfmt.c is located in the separate lib directory.
+通读 kern/printf.c、lib/printfmt.c 和 kern/console.c，确保你理解了它们的关系。在之后的实验中就会清楚为什么 printfmt.c 会被分开放置在 lib 目录里。
 
-Exercise 8. We have omitted a small fragment of code - the code necessary to print octal numbers using patterns of the form "%o". Find and fill in this code fragment.
+练习 8。我们省略了一小段代码——使用“%o”格式打印八进制数所需的代码。找到并填充这个代码。
 
-Be able to answer the following questions:
+要能够回答如下问题：
 
 1. Explain the interface between printf.c and console.c. Specifically, what function does console.c export? How is this function used by printf.c?
 2. Explain the following from console.c:
