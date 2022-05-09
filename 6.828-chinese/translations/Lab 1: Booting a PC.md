@@ -222,52 +222,50 @@ QEMU 为什么会这样开始呢？英特尔就是这样设计 8088 处理器的
 
 在地址 0x7c00 处设置一个断点，也就是 boot 扇区会被加载到的地方。继续执行直到那个断点。追踪整个 boot/boot.S 的代码，用反汇编文件 obj/boot/boot.asm 里的源代码来追踪你所处的代码位置。再用 GDB 的 x/i 指令来反汇编 boot laoder，然后对比一下原始的 boot loader 源代码和反汇编文件里的代码、以及 GDB 产生的反汇编代码。
 
+追踪 boot/main.c 的 bootmain()，然后再追踪 readsect()。确定与 readsect()中的每个语句对应的确切的程序集指令。追踪 readsect()剩余的代码，然后回到 bootmain()，并标识从磁盘读取内核剩余扇区的 for 循环的开始和结束。找到什么代码会在 loop 循环结束的时候运行，在那里设置断点，然后继续到那个断点。然后步进查看 boot loader 的所有剩余代码。
 
+你要能回答以下的问题：
 
-Trace into bootmain() in boot/main.c, and then into readsect(). Identify the exact assembly instructions that correspond to each of the statements in readsect(). Trace through the rest of readsect() and back out into bootmain(), and identify the begin and end of the for loop that reads the remaining sectors of the kernel from the disk. Find out what code will run when the loop is finished, set a breakpoint there, and continue to that breakpoint. Then step through the remainder of the boot loader.
+-   在什么时候处理器开始执行 32 位代码？是什么导致了 16 位到 32 位到模式的转变？
+-   boot loader 最后执行的指令是什么，kernel 刚加载时执行的第一个指令是什么？
+-   kernel 的第一个指令在哪儿？
+-   boot loader 如何决定要读取多少扇区才能加载整个内核？它是在哪里找到这个信息的？
 
-Be able to answer the following questions:
+### Loading the Kernel（加载内核）
 
--   At what point does the processor start executing 32-bit code? What exactly causes the switch from 16- to 32-bit mode?
--   What is the last instruction of the boot loader executed, and what is the first instruction of the kernel it just loaded?
--   Where is the first instruction of the kernel?
--   How does the boot loader decide how many sectors it must read in order to fetch the entire kernel from disk? Where does it find this information?
+我们现在将进一步详细研究 boot loader 的 C 语言部分，boot/main.c。在开始之前，最好可以先好好回顾一下 C 编程的基础。
 
-### Loading the Kernel
+练习 4。阅读 C 语言里的指针部分。C 语言最好的材料就是 The C Programming Language by Brian Kernighan and Dennis Ritchie（也被叫做 K&R）。我们推荐学生买这本书(here is an [Amazon Link](http://www.amazon.com/C-Programming-Language-2nd/dp/0131103628/sr=8-1/qid=1157812738/ref=pd_bbs_1/104-1502762-1803102?ie=UTF8&s=books))，或者[MIT's 7 copies](http://library.mit.edu/F/AI9Y4SJ2L5ELEE2TAQUAAR44XV5RTTQHE47P9MKP5GQDLR9A8X-10422?func=item-global&doc_library=MIT01&doc_number=000355242&year=&volume=&sub_library=)。
 
-We will now look in further detail at the C language portion of the boot loader, in boot/main.c. But before doing so, this is a good time to stop and review some of the basics of C programming.
+阅读 K&R 的 5.1（指针与地址）至 5.5（字符指针和函数）部分。然后下载[pointers.c](https://pdos.csail.mit.edu/6.828/2018/labs/lab1/pointers.c)，运行它，确保你理解了所有打印的值都来自哪里。特别是，要确保您理解打印第 1 行和第 6 行中的指针地址来自哪里，打印第 2 行到第 4 行中的所有值是如何到达那里的，以及为什么在第 5 行中打印的值似乎是损坏的。
 
-Exercise 4. Read about programming with pointers in C. The best reference for the C language is The C Programming Language by Brian Kernighan and Dennis Ritchie (known as 'K&R'). We recommend that students purchase this book (here is an [Amazon Link](http://www.amazon.com/C-Programming-Language-2nd/dp/0131103628/sr=8-1/qid=1157812738/ref=pd_bbs_1/104-1502762-1803102?ie=UTF8&s=books)) or find one of [MIT's 7 copies](http://library.mit.edu/F/AI9Y4SJ2L5ELEE2TAQUAAR44XV5RTTQHE47P9MKP5GQDLR9A8X-10422?func=item-global&doc_library=MIT01&doc_number=000355242&year=&volume=&sub_library=).
+有很多关于 C 语言指针的材料(e.g., [A tutorial by Ted Jensen](https://pdos.csail.mit.edu/6.828/2018/readings/pointers.pdf)，虽然并没有那么强烈推荐。
 
-Read 5.1 (Pointers and Addresses) through 5.5 (Character Pointers and Functions) in K&R. Then download the code for [pointers.c](https://pdos.csail.mit.edu/6.828/2018/labs/lab1/pointers.c), run it, and make sure you understand where all of the printed values come from. In particular, make sure you understand where the pointer addresses in printed lines 1 and 6 come from, how all the values in printed lines 2 through 4 get there, and why the values printed in line 5 are seemingly corrupted.
+警告：除非你已经完全精通 C 语言，否则不要跳过甚至略读这个阅读练习。如果你不能真正理解 C 语言中的指针，你将在随后的实验中经历无数的痛苦和痛苦，然后最终艰难地理解它们。相信我们；你不会想知道什么是"困难的道路"的。
 
-There are other references on pointers in C (e.g., [A tutorial by Ted Jensen](https://pdos.csail.mit.edu/6.828/2018/readings/pointers.pdf) that cites K&R heavily), though not as strongly recommended.
+为了理解 boot/main.c，你需要知道 ELF 二进制文件是什么。当你编译和链接一个 C 程序比如说 JOS 内核时，编译器会把每个 C 源文件（'.c'）转化为一个对象（'.o'）文件，它包含了硬件可以接受的汇编指令的编码。链接器然后组合所有这些编译过的对象文件到一整个二进制镜像比如说 obj/kern/kernel 里，在这种情况下是在 ELF 格式里的二进制，ELF 表示"Executable and Linkable Format"（可执行和可链接的格式）。
 
-Warning: Unless you are already thoroughly versed in C, do not skip or even skim this reading exercise. If you do not really understand pointers in C, you will suffer untold pain and misery in subsequent labs, and then eventually come to understand them the hard way. Trust us; you don't want to find out what "the hard way" is.
+关于这种格式的完整信息可以在[ELF specification](https://pdos.csail.mit.edu/6.828/2018/readings/elf.pdf)这里找到，但在这门课中，你不需要深入钻研这种格式的细节。 尽管作为一个整体，这种格式非常强大和复杂，但大多数复杂的部分都用于支持共享库的动态加载，但我们在这个课程中不会做这个。[维基百科](http://en.wikipedia.org/wiki/Executable_and_Linkable_Format)里有一个简短的描述。
 
-To make sense out of boot/main.c you'll need to know what an ELF binary is. When you compile and link a C program such as the JOS kernel, the compiler transforms each C source ('.c') file into an object ('.o') file containing assembly language instructions encoded in the binary format expected by the hardware. The linker then combines all of the compiled object files into a single binary image such as obj/kern/kernel, which in this case is a binary in the ELF format, which stands for "Executable and Linkable Format".
+对于 6.828，您可以把 ELF 可执行文件看作是一个带有加载信息的头文件，后面跟着几个程序段，每个程序段都是一个连续的代码块或数据，打算加载到指定地址的内存中。boot loader 不修改代码或数据；它只是把 ELF 文件加载到内存中并开始执行。
 
-Full information about this format is available in the [ELF specification](https://pdos.csail.mit.edu/6.828/2018/readings/elf.pdf) on [our reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html), but you will not need to delve very deeply into the details of this format in this class. Although as a whole the format is quite powerful and complex, most of the complex parts are for supporting dynamic loading of shared libraries, which we will not do in this class. The [Wikipedia page](http://en.wikipedia.org/wiki/Executable_and_Linkable_Format) has a short description.
+ELF 二进制由一段固定长度的 ELF 头开始，后面是一个可变长度的程序头，列出要加载的每个程序段。这鞋 ELF 头的 C 语言定义在 inc/elf.h 里。我们关心的程序段是：
 
-For purposes of 6.828, you can consider an ELF executable to be a header with loading information, followed by several program sections, each of which is a contiguous chunk of code or data intended to be loaded into memory at a specified address. The boot loader does not modify the code or data; it loads it into memory and starts executing it.
+-   .text：程序的可执行指令们。
+-   .rodata：只读数据，比如说 C 编译器产生的 ASCII 字符串常量。（我们不会费心设置硬件来禁止写入。）
+-   .data：data 段放置程序段初始化数据，比如声明时初始化的全局变量，比如说 x=5;。
 
-An ELF binary starts with a fixed-length ELF header, followed by a variable-length program header listing each of the program sections to be loaded. The C definitions for these ELF headers are in inc/elf.h. The program sections we're interested in are:
+当链接器计算程序的内存布局时，它会为未初始化的全局变量预留空间，比如说 int x;，在一个紧跟着.data 段的叫做.bss 的段。C 要求未初始化的全局变量以零值开始。因此，ELF 二进制的.bss 段里不需要存储内容；相反，链接器只记录.bss 节的地址和大小。加载器或程序本身必须将.bss 节归零。
 
--   .text: The program's executable instructions.
--   .rodata: Read-only data, such as ASCII string constants produced by the C compiler. (We will not bother setting up the hardware to prohibit writing, however.)
--   .data: The data section holds the program's initialized data, such as global variables declared with initializers like int x = 5;.
-
-When the linker computes the memory layout of a program, it reserves space for uninitialized global variables, such as int x;, in a section called .bss that immediately follows .data in memory. C requires that "uninitialized" global variables start with a value of zero. Thus there is no need to store contents for .bss in the ELF binary; instead, the linker records just the address and size of the .bss section. The loader or the program itself must arrange to zero the .bss section.
-
-Examine the full list of the names, sizes, and link addresses of all the sections in the kernel executable by typing:
+检查内核可执行文件的名字、大小和链接地址列表，可以输入：
 
 ```
 athena% objdump -h obj/kern/kernel
 ```
 
-(If you compiled your own toolchain, you may need to use i386-jos-elf-objdump)
+（如果你自己编译你自己的工具链，你可能要用 i386-jos-elf-objdump）
 
-You will see many more sections than the ones we listed above, but the others are not important for our purposes. Most of the others are to hold debugging information, which is typically included in the program's executable file but not loaded into memory by the program loader.
+您将看到比上面列出的更多的部分，但其他部分对我们的目的并不重要。其他的大多数用来保存调试信息，这些信息通常包含在程序的可执行文件中，但不会被程序加载器加载到内存中。
 
 Take particular note of the "VMA" (or link address) and the "LMA" (or load address) of the .text section. The load address of a section is the memory address at which that section should be loaded into memory.
 
