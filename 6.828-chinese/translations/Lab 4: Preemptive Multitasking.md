@@ -412,49 +412,49 @@ fork()的基本控制流如下：
 
 ### Handling Clock Interrupts（处理时钟中断）
 
-In the user/spin program, after the child environment was first run, it just spun in a loop, and the kernel never got control back. We need to program the hardware to generate clock interrupts periodically, which will force control back to the kernel where we can switch control to a different user environment.
+在 user/spin 程序里，当子环境第一次运行，它只是在一个循环里自旋，内核永远不会重新掌握控制权。我们需要让硬件产生定期的时钟中断，这个会强迫把控制权还给内核，这样我们就可以在不同的用户环境之间切换了。
 
-The calls to lapic_init and pic_init (from i386_init in init.c), which we have written for you, set up the clock and the interrupt controller to generate interrupts. You now need to write the code to handle these interrupts.
+lapic_init 和 pic_init（来自于 init.c 里的 i386_init），我们已经为你写了，设置好时钟和中断控制器来产生中断。你现在需要写处理这些中断的代码。
 
-Exercise 14. Modify the kernel's trap_dispatch() function so that it calls sched_yield() to find and run a different environment whenever a clock interrupt takes place.
+练习 14。修改内核的 trap_dispatch()函数，使它当一个时钟中断到来时，它调用 sched_yield()来找到并运行一个不同的环境。
 
-You should now be able to get the user/spin test to work: the parent environment should fork off the child, sys_yield() to it a couple times but in each case regain control of the CPU after one time slice, and finally kill the child environment and terminate gracefully.
+你现在应该可以通过 user/spin 测试了：父环境应该 fork 子环境，sys_yield()多次但是每次都会重新获取 CPU 的控制权，然后最终 kill 掉子环境并优雅地终止。
 
-This is a great time to do some regression testing. Make sure that you haven't broken any earlier part of that lab that used to work (e.g. forktree) by enabling interrupts. Also, try running with multiple CPUs using make CPUS=2 target. You should also be able to pass stresssched now. Run make grade to see for sure. You should now get a total score of 65/80 points on this lab.
+这是做一些回归测试的好时机。确保你没有破坏实验的之前部分，让它开启中断。也尝试使用 make CPUS=2 来运行多个 CPU。你目前应该也可以通过 stresssched 了。运行 make grade 来确保通过。现在可以获得整个实验的 65/80 分了。
 
-### Inter-Process communication (IPC)
+### Inter-Process communication (IPC)（进程间通信）
 
-(Technically in JOS this is "inter-environment communication" or "IEC", but everyone else calls it IPC, so we'll use the standard term.)
+(从技术上讲，在 JOS 中这是“环境间通信”或“IEC”，但其他人都称它为 IPC，所以我们将使用标准术语。)
 
-We've been focusing on the isolation aspects of the operating system, the ways it provides the illusion that each program has a machine all to itself. Another important service of an operating system is to allow programs to communicate with each other when they want to. It can be quite powerful to let programs interact with other programs. The Unix pipe model is the canonical example.
+我们专注于操作系统的隔离层面，它给人一种错觉，每个程序都有一台属于自己的机器。 操作系统的另一个重要服务是允许程序在需要时相互通信。让程序与其他程序交互是非常强大的。Unix 管道模型就是典型的例子。
 
-There are many models for interprocess communication. Even today there are still debates about which models are best. We won't get into that debate. Instead, we'll implement a simple IPC mechanism and then try it out.
+有许多进程间通信的模型。即使在今天，关于哪种模型是最好的仍然存在争论。我们就不讨论这个了。相反，我们将实现一个简单的 IPC 机制，然后进行试验。
 
 #### IPC in JOS
 
-You will implement a few additional JOS kernel system calls that collectively provide a simple interprocess communication mechanism. You will implement two system calls, sys_ipc_recv and sys_ipc_try_send. Then you will implement two library wrappers ipc_recv and ipc_send.
+你要为 JOS 内核实现一些额外的系统调用，它们共同提供一个简单的进程间通信机制。你要实现两个系统调用，sys_ipc_recv 和 sys_ipc_try_send。然后你要实现两个库来包装 ipc_recv 和 ipc_send。
 
-The "messages" that user environments can send to each other using JOS's IPC mechanism consist of two components: a single 32-bit value, and optionally a single page mapping. Allowing environments to pass page mappings in messages provides an efficient way to transfer more data than will fit into a single 32-bit integer, and also allows environments to set up shared memory arrangements easily.
+用 JOS 进程间通信机制，允许用户环境互相发送“消息”，这个“消息”包含两个组件：一个简单的 32 位值，以及可选的单页映射。允许环境在消息中传递页面映射提供了一种有效的方式来传输比单个 32 位整数更大的数据，还允许环境轻松设置共享内存。
 
-#### Sending and Receiving Messages
+#### Sending and Receiving Messages（发送与接受消息）
 
-To receive a message, an environment calls sys_ipc_recv. This system call de-schedules the current environment and does not run it again until a message has been received. When an environment is waiting to receive a message, any other environment can send it a message - not just a particular environment, and not just environments that have a parent/child arrangement with the receiving environment. In other words, the permission checking that you implemented in Part A will not apply to IPC, because the IPC system calls are carefully designed so as to be "safe": an environment cannot cause another environment to malfunction simply by sending it messages (unless the target environment is also buggy).
+为了接受消息，一个环境调用 sys_ipc_recv。这个系统调用重新对当前环境调度，让它不要运行直到一个消息被接收到。当一个环境正在等待接收消息时，任何其他环境可以给它发送消息-不只是一个特定的环境，也不只是有父子关系的环境可以发送消息给它。换句话说，你在 A 部分中实现的权限检查将不适用于 IPC，因为 IPC 系统调用是精心设计的，保证它很“安全”：一个环境不能仅仅通过向另一个环境发送消息就导致它发生故障(除非目标环境也有错误)。
 
-To try to send a value, an environment calls sys_ipc_try_send with both the receiver's environment id and the value to be sent. If the named environment is actually receiving (it has called sys_ipc_recv and not gotten a value yet), then the send delivers the message and returns 0. Otherwise the send returns -E_IPC_NOT_RECV to indicate that the target environment is not currently expecting to receive a value.
+为了尝试发送一个值，环境需要带上接收环境的 id 和要发送的值去调用 sys_ipc_send。如果指定的环境正在接收（它已经调用了 sys_ipc_recv 但还没有接收到一个值），那么它发送消息并返回 0。否则发送返回 -E_IPC_NOT_RECV 来指示目标环境当前并不期待接收到一个值。
 
-A library function ipc_recv in user space will take care of calling sys_ipc_recv and then looking up the information about the received values in the current environment's struct Env.
+用户空间中的库函数 ipc_recv 将负责调用 sys_ipc_recv，然后在当前环境的结构体 Env 中查找接收到的值的信息。
 
-Similarly, a library function ipc_send will take care of repeatedly calling sys_ipc_try_send until the send succeeds.
+同样地，库函数 ipc_send 会重复调用 sys_ipc_try_send 直到发送成功。
 
-#### Transferring Pages
+#### Transferring Pages（转交内存页）
 
-When an environment calls sys_ipc_recv with a valid dstva parameter (below UTOP), the environment is stating that it is willing to receive a page mapping. If the sender sends a page, then that page should be mapped at dstva in the receiver's address space. If the receiver already had a page mapped at dstva, then that previous page is unmapped.
+当一个环境调用 sys_ipc_recv 带着一个可用的 dstva 参数（在 UTOP 之下），表明这个环境想要接收到一个页映射。如果发送者发送一个页，那么这个页应该映射到接收者的地址空间的 dstva 处。如果接收者已经有一个页映射在 dstva，那么就把已经映射的这个页取消映射。
 
 When an environment calls sys_ipc_try_send with a valid srcva (below UTOP), it means the sender wants to send the page currently mapped at srcva to the receiver, with permissions perm. After a successful IPC, the sender keeps its original mapping for the page at srcva in its address space, but the receiver also obtains a mapping for this same physical page at the dstva originally specified by the receiver, in the receiver's address space. As a result this page becomes shared between the sender and receiver.
 
 If either the sender or the receiver does not indicate that a page should be transferred, then no page is transferred. After any IPC the kernel sets the new field env_ipc_perm in the receiver's Env structure to the permissions of the page received, or zero if no page was received.
 
-#### Implementing IPC
+#### Implementing IPC（实现 IPC）
 
 Exercise 15. Implement sys_ipc_recv and sys_ipc_try_send in kern/syscall.c. Read the comments on both before implementing them, since they have to work together. When you call envid2env in these routines, you should set the checkperm flag to 0, meaning that any environment is allowed to send IPC messages to any other environment, and the kernel does no special permission checking other than verifying that the target envid is valid.
 
