@@ -335,8 +335,8 @@ athena% objdump -f obj/kern/kernel
 
 要能够回答如下问题：
 
-1. Explain the interface between printf.c and console.c. Specifically, what function does console.c export? How is this function used by printf.c?
-2. Explain the following from console.c:
+1. 解释 printf.c 和 console.c 接口的区别。具体来说，console.c 导出什么函数？什么函数被用在 printf.c 里？
+2. 解释 console.c 如下代码：
     ```
     1      if (crt_pos >= CRT_SIZE) {
     2              int i;
@@ -346,46 +346,51 @@ athena% objdump -f obj/kern/kernel
     6              crt_pos -= CRT_COLS;
     7      }
     ```
-3. For the following questions you might wish to consult the notes for Lecture 2. These notes cover GCC's calling convention on the x86.
-   Trace the execution of the following code step-by-step:
+3. 对于下列问题，你可能想要 Lecture 2 的笔记。这些笔记包含了 x86 上 GCC 的的调用约定。
+   一步一步地追踪如下代码的执行：
+
     ```
     int x = 1, y = 3, z = 4;
     cprintf("x %d, y %x, z %d\n", x, y, z);
     ```
-    - In the call to cprintf(), to what does fmt point? To what does ap point?
-    - List (in order of execution) each call to cons_putc, va_arg, and vcprintf. For cons_putc, list its argument as well. For va_arg, list what ap points to before and after the call. For vcprintf list the values of its two arguments.
-4. Run the following code.
+
+    - 在调用 cprintf()， fmt 指向什么?ap 指向什么?
+    - 列出来（按照执行顺序）每个对 cons_putc，va_arg 和 vcprintf 的调用。对于 cons_putc，也把它的参数也列举出来。对于 va_arg，列出 ap 指针在调用之前和之后指向的内容。对于 vcprintf，列出它的两个参数的值。
+
+4. 运行如下代码。
 
     ```
     unsigned int i = 0x00646c72;
     cprintf("H%x Wo%s", 57616, &i);
     ```
 
-    What is the output? Explain how this output is arrived at in the step-by-step manner of the previous exercise. [Here's an ASCII table](http://web.cs.mun.ca/~michael/c/ascii-table.html) that maps bytes to characters.
+    输出是什么？解释这个输出是如何在前面练习的逐步方式中得到的。[Here's an ASCII table](http://web.cs.mun.ca/~michael/c/ascii-table.html)将字节映射到字符。
 
-    The output depends on that fact that the x86 is little-endian. If the x86 were instead big-endian what would you set i to in order to yield the same output? Would you need to change 57616 to a different value?
+    输出依赖于 x86 是小端序的这一事实。如果 x86 是大端序，为了产生相同的输出，你会把 i 设置为什么？你需要把 57616 改变为另外一个值吗？
 
-    [Here's a description of little- and big-endian](http://www.webopedia.com/TERM/b/big_endian.html) and [a more whimsical description](http://www.networksorcery.com/enp/ien/ien137.txt).
+    这里有一份[小端序和大端序的描述](http://www.webopedia.com/TERM/b/big_endian.html)和[一个更古怪的描述](http://www.networksorcery.com/enp/ien/ien137.txt)。
 
-5. In the following code, what is going to be printed after 'y='? (note: the answer is not a specific value.) Why does this happen?
+5. 在如下代码里，'y='之后会打印什么?（注意：答案不是一个特定的值）这个是怎么发生的？
+
     ```
     cprintf("x=%d y=%d", 3);
     ```
-6. Let's say that GCC changed its calling convention so that it pushed arguments on the stack in declaration order, so that the last argument is pushed last. How would you have to change cprintf or its interface so that it would still be possible to pass it a variable number of arguments?
 
-Challenge Enhance the console to allow text to be printed in different colors. The traditional way to do this is to make it interpret [ANSI escape sequences](http://rrbrandt.dee.ufcg.edu.br/en/docs/ansi/) embedded in the text strings printed to the console, but you may use any mechanism you like. There is plenty of information on [the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html) and elsewhere on the web on programming the VGA display hardware. If you're feeling really adventurous, you could try switching the VGA hardware into a graphics mode and making the console draw text onto the graphical frame buffer.
+6. 让我们假设 GCC 改变了它的调用约定，它按照声明的顺序将参数推入堆栈，这样最后一个参数就会最后一个被推入。那你要如何修改 cprintf 或者它的接口来让还是可以去传递给它一个可变数量的参数？
+
+挑战！增强 console 来允许 text 被打印为不同的颜色。传统的方法是让它解释打印到控制台的文本字符串中嵌入的[ANSI 转义序列](http://rrbrandt.dee.ufcg.edu.br/en/docs/ansi/)，但是您可以使用任何您喜欢的机制。这里有很多信息：[the 6.828 reference page](https://pdos.csail.mit.edu/6.828/2018/reference.html)或关于 VGA 显示硬件的编程。如果你真的想冒险的话，您可以尝试将 VGA 硬件切换到图形模式，并使控制台将文本绘制到图形帧缓冲区上。
 
 ### The Stack
 
-In the final exercise of this lab, we will explore in more detail the way the C language uses the stack on the x86, and in the process write a useful new kernel monitor function that prints a backtrace of the stack: a list of the saved Instruction Pointer (IP) values from the nested call instructions that led to the current point of execution.
+在这个实验的最后练习中，我们将更详细地探讨 C 语言在 x86 上使用堆栈的方式，并在此过程中编写一个有用的新的内核监视函数，用于打印堆栈的回溯信息：指向当前执行点的嵌套调用指令中保存的指令指针(IP)值的列表。
 
-Exercise 9. Determine where the kernel initializes its stack, and exactly where in memory its stack is located. How does the kernel reserve space for its stack? And at which "end" of this reserved area is the stack pointer initialized to point to?
+练习 9。内核在什么时候初始化它的栈的？以及它的栈在内存里什么位置？内核如何为它的栈预留空间的？保留区域的哪个“end”是栈指针最初初始化指向的位置？
 
-The x86 stack pointer (esp register) points to the lowest location on the stack that is currently in use. Everything below that location in the region reserved for the stack is free. Pushing a value onto the stack involves decreasing the stack pointer and then writing the value to the place the stack pointer points to. Popping a value from the stack involves reading the value the stack pointer points to and then increasing the stack pointer. In 32-bit mode, the stack can only hold 32-bit values, and esp is always divisible by four. Various x86 instructions, such as call, are "hard-wired" to use the stack pointer register.
+x86 栈指针（esp 寄存器）指向当前使用的堆栈的最低位置。在那个位置的下面所有为栈预留的区域都是空闲的。将值压入堆栈需要减小堆栈指针，然后将值写入堆栈指针所指向的位置。从一个栈里推出值来读取值，然后增加栈指针的值。在 32 位模式，栈只能保存 32 位的值，esp 永远可以被 4 整除。很多 x86 的指令，比如说 call，是“硬接线”来使用栈指针寄存器的。
 
-The ebp (base pointer) register, in contrast, is associated with the stack primarily by software convention. On entry to a C function, the function's prologue code normally saves the previous function's base pointer by pushing it onto the stack, and then copies the current esp value into ebp for the duration of the function. If all the functions in a program obey this convention, then at any given point during the program's execution, it is possible to trace back through the stack by following the chain of saved ebp pointers and determining exactly what nested sequence of function calls caused this particular point in the program to be reached. This capability can be particularly useful, for example, when a particular function causes an assert failure or panic because bad arguments were passed to it, but you aren't sure who passed the bad arguments. A stack backtrace lets you find the offending function.
+ebp（基值指针）寄存器，相反，主要是通过软件约定来和栈相联系。在 C 函数的入口，函数的序言代码通常通过将前一个函数的基指针压入堆栈来保存它，然后在函数运行期间将当前 esp 值复制到 ebp 中。如果一个程序里所有函数都遵循约定，那么在程序执行的任意一点，通过跟踪保存的 ebp 指针链并确定到底是哪个嵌套的函数调用序列导致程序中到达这个特定的点，可以通过堆栈进行回溯。这个功能可能特别有用，例如，当一个特定函数由于传递了错误的参数而导致断言失败或 panic 时，但是您不确定是谁传递了错误的参数。堆栈回溯可以让您找到有问题的函数。
 
-Exercise 10. To become familiar with the C calling conventions on the x86, find the address of the test_backtrace function in obj/kern/kernel.asm, set a breakpoint there, and examine what happens each time it gets called after the kernel starts. How many 32-bit words does each recursive nesting level of test_backtrace push on the stack, and what are those words?
+练习 10。为了熟悉 x86 的 C 语言的调用约定，找到 obj/kern/kernel.asm 的 test_backtrace 函数的地址，在那儿设置断点，然后检查在内核启动后每次调用它时发生了什么。每个递归的 test_backtrace 嵌套级别在堆栈上推入多少个 32 位的 word，这些 word 是什么?
 
 Note that, for this exercise to work properly, you should be using the patched version of QEMU available on the [tools](https://pdos.csail.mit.edu/6.828/2018/tools.html) page or on Athena. Otherwise, you'll have to manually translate all breakpoint and memory addresses to linear addresses.
 
