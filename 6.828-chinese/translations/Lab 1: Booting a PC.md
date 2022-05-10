@@ -451,18 +451,14 @@ Stack backtrace:
 K>
 ```
 
-Each line gives the file name and line within that file of the stack frame's eip, followed by the name of the function and the offset of the eip from the first instruction of the function (e.g., monitor+106 means the return eip is 106 bytes past the beginning of monitor).
+每一行给出了堆栈帧 eip 的文件名和文件中的行，后面跟着函数名和 eip 从函数的第一个指令开始的偏移量(例如，monitor+106 表示返回的 eip 在 monitor 的开始位置后 106 字节)。
 
-Be sure to print the file and function names on a separate line, to avoid confusing the grading script.
+确保在不同行打印文件和函数名，这样可以避免让打分脚本困惑。
 
-Tip: printf format strings provide an easy, albeit obscure, way to print non-null-terminated strings like those in STABS tables. printf("%.\*s", length, string) prints at most length characters of string. Take a look at the printf man page to find out why this works.
+Tip：printf 格式字符串提供了一种简单(尽管有些模糊)的方式来打印非以空结束的字符串，比如 stab 表中的字符串。printf("%.\*s", length, string)打印字符串的最大长度。请查看 printf 的 man 页，了解为什么它可以工作。
 
-You may find that some functions are missing from the backtrace. For example, you will probably see a call to monitor() but not to runcmd(). This is because the compiler in-lines some function calls. Other optimizations may cause you to see unexpected line numbers. If you get rid of the -O2 from GNUMakefile, the backtraces may make more sense (but your kernel will run more slowly).
+你可能会发现一些函数在回溯时丢失了。比如，你可能会看到一个对 monitor()的调用而不是 runcmd()。这是因为编译器内联了一些函数调用。其他优化可能会导致您看到意外的行号。如果您从 GNUMakefile 中去掉-O2，回溯可能会更有意义(但您的内核将运行得更慢)。
 
-Each line gives the file name and line within that file of the stack frame's eip, followed by the name of the function and the offset of the eip from the first instruction of the function (e.g., monitor+106 means the return eip is 106 bytes past the beginning of monitor).
+每一行给出了堆栈帧 eip 的文件名和文件中的行，后面跟着函数名和 eip 从函数的第一个指令开始的偏移量(例如，monitor+106 表示返回的 eip 在 monitor 的开始位置后 106 字节)。
 
-Be sure to print the file and function names on a separate line, to avoid confusing the grading script.
-
-Tip: printf format strings provide an easy, albeit obscure, way to print non-null-terminated strings like those in STABS tables. printf("%.\*s", length, string) prints at most length characters of string. Take a look at the printf man page to find out why this works.
-
-You may find that some functions are missing from the backtrace. For example, you will probably see a call to monitor() but not to runcmd(). This is because the compiler in-lines some function calls. Other optimizations may cause you to see unexpected line numbers. If you get rid of the -O2 from GNUMakefile, the backtraces may make more sense (but your kernel will run more slowly).
+确保将文件和函数名打印在单独的行上，以避免混淆打分脚本。
