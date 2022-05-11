@@ -26,13 +26,13 @@
 
 ### 多处理器支持
 
-我们打算让 JOS 支持“对称多处理”(SMP)，这是一种多处理器模型，在这种模型中，所有 cpu 对系统资源(如内存和 I/O 总线)都有同等的访问权限。虽然在 SMP 中，所有 cpu 的功能都是相同的，但在引导过程中，它们可以分为两类:引导处理器(bootstrap processor, BSP)负责初始化系统和引导操作系统;只有在操作系统启动并运行之后，BSP 才会激活应用程序处理器(ap)。哪个处理器是 BSP 由硬件和 BIOS 决定。到目前为止，所有现有的 JOS 代码都在 BSP 上运行。
+我们打算让 JOS 支持“对称多处理”(SMP)，这是一种多处理器模型，在这种模型中，所有 CPU 对系统资源(如内存和 I/O 总线)都有同等的访问权限。虽然在 SMP 中，所有 CPU 的功能都是相同的，但在引导过程中，它们可以分为两类：引导处理器(bootstrap processor, BSP)负责初始化系统和引导操作系统；只有在操作系统启动并运行之后，BSP 才会激活应用程序处理器(AP)。哪个处理器是 BSP 由硬件和 BIOS 决定。到目前为止，所有现有的 JOS 代码都在 BSP 上运行。
 
-在 SMP 系统中，每个 CPU 都有一个相应的本地 APIC (LAPIC)单元。LAPIC 单元负责在整个系统中传递中断。LAPIC 还为其连接的 CPU 提供一个惟一标识符。在本实验室中，我们使用了以下 LAPIC 单元的基本功能(在 kern/ LAPIC .c 中):
+在 SMP 系统中，每个 CPU 都有一个相应的本地 APIC (LAPIC)单元。LAPIC 单元负责在整个系统中传递中断。LAPIC 还为其连接的 CPU 提供一个唯一标识符。在本实验室中，我们使用了以下 LAPIC 单元的基本功能(在 kern/LAPIC.c 中)：
 
 -   读取 LAPIC 标识符(APIC ID)来告诉我们的代码当前运行在哪个 CPU 上(参见 cpunum())。
--   从 BSP 向 ap 发送 STARTUP interprocessor interrupt (IPI)来启动其他 cpu(参见 lapic_startap())。
--   在 C 部分，我们编写了 LAPIC 的内置定时器来触发时钟中断，以支持抢占式多任务(参见 apic_init())。
+-   从 BSP 向 AP 发送 STARTUP interprocessor interrupt (IPI)来启动其他 CPU(参见 lapic_startap())。
+-   在 C 语言部分，我们编写了 LAPIC 的内置定时器来触发时钟中断，以支持抢占式多任务(参见 apic_init())。
 
 处理器使用内存映射 I/O (MMIO)访问它的 LAPIC。在 MMIO 中，物理内存的一部分硬连接到一些 I/O 设备的寄存器，因此通常用于访问内存的加载/存储指令也可以用于访问设备寄存器。你已经看到物理地址 0xA0000 上有一个 IO 孔(我们使用它来写入 VGA 显示缓冲区)。LAPIC 位于一个从物理地址 0xFE000000 (32MB 差 4GB)开始的漏洞中，因此我们无法在 KERNBASE 上使用通常的直接映射来访问它。JOS 虚拟内存映射在 MMIOBASE 中留下了 4MB 的空白，所以我们有一个地方可以像这样映射设备。由于后面的实验引入了更多的 MMIO 区域，因此你将编写一个简单的函数来从该区域分配空间并将设备内存映射到该区域。
 
@@ -40,13 +40,13 @@
 
 #### Application Processor Bootstrap（AP 处理器的启动）
 
-在启动 ap 之前，BSP 应该首先收集多处理器系统的信息，如 cpu 总数、APIC id 和 LAPIC 单元的 MMIO 地址。kern/mpconfig.c 中的 mp_init()函数通过读取驻留在 BIOS 内存区域中的 MP 配置表来获取这些信息。
+在启动 AP 之前，BSP 应该首先收集多处理器系统的信息，如 CPU 总数、APIC ID 和 LAPIC 单元的 MMIO 地址。kern/mpconfig.c 中的 mp_init()函数通过读取驻留在 BIOS 内存区域中的 MP 配置表来获取这些信息。
 
-boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式下启动，就像引导加载程序在引导/引导中启动一样。，因此 boot_aps()将 AP 入口代码(kern/mpentry.S)复制到一个在实际模式下可寻址的内存位置。与引导加载器不同的是，我们对 AP 从哪里开始执行代码有一些控制;我们将入口代码复制到 0x7000 (MPENTRY_PADDR)，但是任何未使用的、页面对齐的、低于 640KB 的物理地址都可以工作。
+boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。AP 在实模式下启动，就像引导加载程序在 boot/boot.S 中启动一样。因此 boot_aps()将 AP 入口代码(kern/mpentry.S)复制到一个在实际模式下可寻址的内存位置。与引导加载器不同的是，我们对 AP 从哪里开始执行代码有一些控制;我们将入口代码复制到 0x7000 (MPENTRY_PADDR)，但是任何未使用的、页面对齐的、低于 640KB 的物理地址都可以工作。
 
 在此之后，boot_aps()通过向相应 AP 的 LAPIC 单元发送 STARTUP IPIs 以及初始 CS:IP 地址依次激活 AP, AP 应该在该 IP 地址开始运行它的入口代码(在本例中为 MPENTRY_PADDR)。kern/mpentry.S 中的入口代码。与 boot/boot.S 非常相似。经过一些简短的设置后，它将 AP 放入启用分页的保护模式，然后调用 C 设置例程 mp_main()(也在 kern/init.c 中)。boot_aps()等待 AP 在其结构体 CpuInfo 的 cpu_status 字段中发出 CPU_STARTED 标志，然后继续唤醒下一个 AP。
 
-练习 2。读入 kern/init.c 中的 boot_aps()和 mp_main()，读入 kern/mpentry.S 中的汇编代码。确保你理解 ap 引导过程中的控制流传输。然后修改 kern/pmap.c 中的 page_init()实现，以避免将 MPENTRY_PADDR 上的页面添加到空闲列表中，这样我们就可以安全地复制并运行该物理地址上的 AP 引导代码。你的代码应该通过更新的 check_page_free_list()测试(但可能无法通过更新的 check_kern_pgdir()测试，我们将很快修复它)。
+练习 2。阅读 kern/init.c 中的 boot_aps()和 mp_main()，阅读 kern/mpentry.S 中的汇编代码。确保你理解 ap 引导过程中的控制流传输。然后修改 kern/pmap.c 中的 page_init()的实现，以避免将 MPENTRY_PADDR 上的页面添加到空闲列表中，这样我们就可以安全地复制并运行该物理地址上的 AP 引导代码。你的代码应该通过更新的 check_page_free_list()测试(但可能无法通过更新的 check_kern_pgdir()测试，我们将很快修复它)。
 
 问题
 
@@ -62,7 +62,7 @@ boot_aps()函数(在 kern/init.c 中)驱动 AP 引导进程。ap 在真实模式
 -   每个 CPU 的内核栈（kernel stack）
     因为多 CPU 可以同时陷入内核，所以我们需要为每一个 CPU 弄一个内核栈，来防止它们相互干涉对方的执行。数组 percpu_kstacks[NCPU][kstksize]为 NCPU 保留了内核栈的空间。
 
-    In Lab 2, you mapped the physical memory that bootstack refers to as the BSP's kernel stack just below KSTACKTOP. Similarly, in this lab, you will map each CPU's kernel stack into this region with guard pages acting as a buffer between them. CPU 0's stack will still grow down from KSTACKTOP; CPU 1's stack will start KSTKGAP bytes below the bottom of CPU 0's stack, and so on. inc/memlayout.h shows the mapping layout.
+    在实验 2 中，你已经在物理地址的 KSTACKTOP 下为 BSP 映射了内核栈，用 bootstack 来引用。同样地，在这个实验中，你会映射每个 CPU 的内核栈到某些守护内存页的区域，作为 CPU 之间的缓存。CPU 0 的栈还是会从 STACKTOP 往下增长；CPU 1 的栈会从 CPU 0 栈的底部更低 KSTKGAP 比特的位置开始，以此类推。inc/memlayout.h 展示了这个映射的布局。
 
 -   每个 CPU 的 TSS 和 TSS 描述符
     为了指定每一个 CPU 的内核栈都存在于哪里，需要每个 CPU 的任务状态段（TSS）。CPU i 的 TSS 存放在 cpu[i].cpu_ts 中，对应的 TSS 描述符定义在 GDT 项 gdt[(GD_TSS0 >> 3) + i]里。全局 ts 变量定义在 kern/trap.c 不会再有用处。
@@ -225,7 +225,7 @@ xv6 Unix 通过将所有来自父节点的数据复制到分配给子节点的�
 
 #### Normal and Exception Stacks in User Environments（用户环境的正常栈和异常栈）
 
-当正常执行士，JOS 里的一个用户环境会运行在正常的用户栈上：它的 ESP 寄存器开始指向 USTACKTOP，它推送的数据驻留在 USTACKTOP-PGSIZE 和 USTACKTOP-1 之间。 当一个页错误出现在用户态时，然而，内核会重启用户环境去运行一个委托的用户级页错误处理程序在一个不同的栈上，这个栈被叫做用户异常栈。本质上，我们将让 JOS 内核实现代表用户环境的自动“堆栈切换”，就像 x86 处理器在从用户模式转换到内核模式时已经代表 JOS 实现了堆栈切换一样!
+当正常执行时，JOS 里的一个用户环境会运行在正常的用户栈上：它的 ESP 寄存器开始指向 USTACKTOP，它推送的数据驻留在 USTACKTOP-PGSIZE 和 USTACKTOP-1 之间。 当一个页错误出现在用户态时，然而，内核会重启用户环境去运行一个委托的用户级页错误处理程序在一个不同的栈上，这个栈被叫做用户异常栈。本质上，我们将让 JOS 内核实现代表用户环境的自动“堆栈切换”，就像 x86 处理器在从用户模式转换到内核模式时已经代表 JOS 实现了堆栈切换一样!
 
 JOS 用户异常栈也是只有一页大小，它的顶部定义在虚拟地址的 UXSTACKTOP，所以确定的用户异常栈在 UXSTACKTOP-PGSIZE 到 UXSTACKTOP-1 之间。当运行在这个异常栈时，这个用户级页错误处理程序可以使用 JOS 的常规系统调用来映射新的页或者调整映射来恢复页面错误导致的任何问题。之后这个用户级页错误处理程序通过一个汇编 stub 返回错误码到原始栈上。
 
