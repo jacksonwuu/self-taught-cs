@@ -18,11 +18,11 @@
 
 大多数磁盘无法执行字节粒度的读写，而是直接读写整个扇区。在 JOS 里，每个扇区 512 个字节。文件系统实际上以块为单位分配和使用磁盘存储。请注意这两个术语的区别：扇区大小是磁盘硬件决定的，而区块大小是操作系统决定的。一个文件系统的区块大小必须是该磁盘扇区大小的整数倍。
 
-UNIX xv6 文件系统的一个区块未 512 比特，和扇区大小一样。但是大多数文件系统采用的是更大的区块，因为存储空间很便宜，可以在较大粒度上管理存储。我们的文件系统会使用 4096 比特大小的区块，以便和处理器的页大小匹配。
+UNIX xv6 文件系统的一个区块为 512 比特，和扇区大小一样。但是大多数文件系统采用的是更大的区块，因为存储空间很便宜，可以在较大粒度上管理存储。我们的文件系统会使用 4096 比特大小的区块，以便和处理器的页大小匹配。
 
 #### 超级区块（Superblocks）
 
-文件系统把存储整个文件系统元数据的区块放到一个“非常寻找”的磁盘位置（比如说磁盘的起始或末尾），这些元数据存储了区块大小、磁盘大小，以及任何任何寻找根目录所需的元数据，文件系统上次挂载的时间，文件系统上次 check error 的时间等等。这些特别的区块被称为超级区块。
+文件系统把存储整个文件系统元数据的区块放到一个“非常好找”的磁盘位置（比如说磁盘的起始或末尾），这些元数据存储了区块大小、磁盘大小，以及任何任何寻找根目录所需的元数据，文件系统上次挂载的时间，文件系统上次 check error 的时间等等。这些特别的区块被称为超级区块。
 
 我们的文件系统会有一个超级区块，它永远都是在磁盘的区块 1 上。它的布局被定义在`inc/fs.h`的`Super`结构体里。区块 0 是用来存放 boot loader 和分区表的，所以文件系统一般不会使用磁盘的第一个区块。许多“真实”的文件系统维护了多个超级区块，把这几个超级区块复制到多个宽区域里，这样如果其中一个区域的损坏或磁盘在区域中出现了错误，仍然可以找到其他超级块并使用它们访问文件系统。
 
@@ -34,7 +34,7 @@ UNIX xv6 文件系统的一个区块未 512 比特，和扇区大小一样。但
 
 #### 目录 vs 常规文件
 
-我们文件系统的一个文件结构可以代表普通文件或者目录；这两种“文件”通过`type`字段来做区分。文件系统管理普通文件和目录的方式都是一样的，The file system manages regular files and directory-files in exactly the same way, except that it does not interpret the contents of the data blocks associated with regular files at all, whereas the file system interprets the contents of a directory-file as a series of File structures describing the files and subdirectories within the directory.
+我们文件系统的一个文件结构可以代表普通文件或者目录；这两种“文件”通过`type`字段来做区分。文件系统管理普通文件和目录的方式都是一样的，文件系统用同样的方式去管理普通文件和目录文件，除了一点，它不对普通文件相关联的数据块的内存进行解析，这个文件系统把目录文件的内容解析为一系列的 File 结构体，这些结构体用来描述该目录下的文件和子目录。
 
 我们文件系统里的超级区块包含了一个`File`结构体（`Super`结构体里的`root`字段），这里面保存了文件系统根目录的元数据。这个目录里的内容是一串`File`结构体，这些结构体描述了在根目录下的文件和目录。任何根目录下的子目录也会包含`File`结构体来表示孙子目录，以此类推。
 
@@ -46,7 +46,7 @@ UNIX xv6 文件系统的一个区块未 512 比特，和扇区大小一样。但
 
 我们操作系统的文件系统需要能访问磁盘，但是我们还没有实现任何磁盘访问功能。我们并不把 IDE 磁盘驱动也放到内核里，而是放到用户级别的文件系统环境里。我们只会轻微地改造内核，以便让文件系统环境有访问磁盘的权限。
 
-It is easy to implement disk access in user space this way as long as we rely on polling, "programmed I/O" (PIO)-based disk access and do not use disk interrupts. It is possible to implement interrupt-driven device drivers in user mode as well (the L3 and L4 kernels do this, for example), but it is more difficult since the kernel must field device interrupts and dispatch them to the correct user-mode environment.
+只要我们依赖于轮训、“programmed I/O” (PIO)-based 的磁盘访问、不使用磁盘中断，就很容易实现在用户空间的磁盘访问。也有可能在用户态下实现一个中断驱动的设备驱动（比如说 L3 和 L4 内核就是这样做的），但是由于内核必须接收设备中断并将它们分派到正确的用户模式环境中，这就更加困难了。
 
 x86 处理器通过 EFLAGS 寄存器里的 IOPL 位来决定是否保护模式代码可以指向 I/O 指令，比如说 IN 和 OUT 指令。因为所有的 IDE 磁盘寄存器都是在 x86 的 I/O 空间，而不是通过存储器映射的方式，给文件系统“I/O 权限”是让它访问这些寄存器的唯一方式。实际上，EFLAGS 寄存器里的 IOPL 位给内核提供了一种“all-or-nothing”的方法来控制用户态代码是否可以访问磁盘。在我们的情况下，我们想要文件系统环境可以访问 I/O 空间，但是我们不想要任何用户环境可以访问 I/O 空间。
 
@@ -118,7 +118,7 @@ flush_block 函数应该把一个区块写入 disk。如果这个区块不在区
 
 练习 5：实现 fs/serv.c 里的 serve_read。
 
-serve_read's heavy lifting will be done by the already-implemented file_read in fs/fs.c (which, in turn, is just a bunch of calls to file_get_block). serve_read just has to provide the RPC interface for file reading. Look at the comments and code in serve_set_size to get a general idea of how the server functions should be structured.
+serve_read 繁重的工作由已经实现的 file_read（fs/fs.c）来完成（反过来说，file_read 也只是一堆对 file_get_block 的调用）。serve_read 只是为文件读取提供了 RPC 接口。阅读一下 serve_set_size 里的注释和代码，来大致了解 server 功能应该如何组织的。
 
 练习 6：实现`fs/serv.c`里的`serve_write`，以及`lib/file.c`里的`devfile_write`。
 
@@ -130,8 +130,77 @@ serve_read's heavy lifting will be done by the already-implemented file_read in 
 
 练习 7：`spawn`依赖于新的系统调用`sys_env_set_trapframe`，来初始化新创建用户环境的状态。实现`sys_env_set_trapframe`(位于`kern/syscall.c`)。
 
-### Sharing library state across fork and spawn
+挑战！实现 Unix-style 的 exec。
 
-## The keyboard interface
+挑战！实现 mmap-style 的 memory-mapped 文件，修改 spawn，来尽可能从 ELF 映像直接映射内存页。
+
+### 在 fork 和 spawn 之间共享库状态
+
+The UNIX file descriptors are a general notion that also encompasses pipes, console I/O, etc. In JOS, each of these device types has a corresponding struct Dev, with pointers to the functions that implement read/write/etc. for that device type. lib/fd.c implements the general UNIX-like file descriptor interface on top of this. Each struct Fd indicates its device type, and most of the functions in lib/fd.c simply dispatch operations to functions in the appropriate struct Dev.
+
+lib/fd.c also maintains the file descriptor table region in each application environment's address space, starting at FDTABLE. This area reserves a page's worth (4KB) of address space for each of the up to MAXFD (currently 32) file descriptors the application can have open at once. At any given time, a particular file descriptor table page is mapped if and only if the corresponding file descriptor is in use. Each file descriptor also has an optional "data page" in the region starting at FILEDATA, which devices can use if they choose.
+
+We would like to share file descriptor state across fork and spawn, but file descriptor state is kept in user-space memory. Right now, on fork, the memory will be marked copy-on-write, so the state will be duplicated rather than shared. (This means environments won't be able to seek in files they didn't open themselves and that pipes won't work across a fork.) On spawn, the memory will be left behind, not copied at all. (Effectively, the spawned environment starts with no open file descriptors.)
+
+We will change fork to know that certain regions of memory are used by the "library operating system" and should always be shared. Rather than hard-code a list of regions somewhere, we will set an otherwise-unused bit in the page table entries (just like we did with the PTE_COW bit in fork).
+
+We have defined a new PTE_SHARE bit in inc/lib.h. This bit is one of the three PTE bits that are marked "available for software use" in the Intel and AMD manuals. We will establish the convention that if a page table entry has this bit set, the PTE should be copied directly from parent to child in both fork and spawn. Note that this is different from marking it copy-on-write: as described in the first paragraph, we want to make sure to share updates to the page.
+
+Exercise 8. Change duppage in lib/fork.c to follow the new convention. If the page table entry has the PTE_SHARE bit set, just copy the mapping directly. (You should use PTE_SYSCALL, not 0xfff, to mask out the relevant bits from the page table entry. 0xfff picks up the accessed and dirty bits as well.)
+
+Likewise, implement copy_shared_pages in lib/spawn.c. It should loop through all page table entries in the current process (just like fork did), copying any page mappings that have the PTE_SHARE bit set into the child process.
+
+Use make run-testpteshare to check that your code is behaving properly. You should see lines that say "fork handles PTE_SHARE right" and "spawn handles PTE_SHARE right".
+
+Use make run-testfdsharing to check that file descriptors are shared properly. You should see lines that say "read in child succeeded" and "read in parent succeeded".
+
+## 键盘接口
+
+For the shell to work, we need a way to type at it. QEMU has been displaying output we write to the CGA display and the serial port, but so far we've only taken input while in the kernel monitor. In QEMU, input typed in the graphical window appear as input from the keyboard to JOS, while input typed to the console appear as characters on the serial port. kern/console.c already contains the keyboard and serial drivers that have been used by the kernel monitor since lab 1, but now you need to attach these to the rest of the system.
+
+Exercise 9. In your kern/trap.c, call kbd_intr to handle trap IRQ_OFFSET+IRQ_KBD and serial_intr to handle trap IRQ_OFFSET+IRQ_SERIAL.
+
+We implemented the console input/output file type for you, in lib/console.c. kbd_intr and serial_intr fill a buffer with the recently read input while the console file type drains the buffer (the console file type is used for stdin/stdout by default unless the user redirects them).
+
+Test your code by running make run-testkbd and type a few lines. The system should echo your lines back to you as you finish them. Try typing in both the console and the graphical window, if you have both available.
 
 ## The Shell
+
+Run make run-icode or make run-icode-nox. This will run your kernel and start user/icode. icode execs init, which will set up the console as file descriptors 0 and 1 (standard input and standard output). It will then spawn sh, the shell. You should be able to run the following commands:
+
+```
+   echo hello world | cat
+	cat lorem |cat
+	cat lorem |num
+	cat lorem |num |num |num |num |num
+	lsfd
+```
+
+Note that the user library routine cprintf prints straight to the console, without using the file descriptor code. This is great for debugging but not great for piping into other programs. To print output to a particular file descriptor (for example, 1, standard output), use fprintf(1, "...", ...). printf("...", ...) is a short-cut for printing to FD 1. See user/lsfd.c for examples.
+
+Exercise 10.
+
+The shell doesn't support I/O redirection. It would be nice to run `sh < script` instead of having to type in all the commands in the script by hand, as you did above. Add I/O redirection for < to user/sh.c.
+
+Test your implementation by typing `sh < script` into your shell
+
+Run `make run-testshell` to test your shell. testshell simply feeds the above commands (also found in fs/testshell.sh) into the shell and then checks that the output matches fs/testshell.key.
+
+Challenge! Add more features to the shell. Possibilities include (a few require changes to the file system too):
+
+-   backgrounding commands (ls &)
+-   multiple commands per line (ls; echo hi)
+-   command grouping ((ls; echo hi) | cat > out)
+-   environment variable expansion (echo $hello)
+-   quoting (echo "a | b")
+-   command-line history and/or editing
+-   tab completion
+-   directories, cd, and a PATH for command-lookup.
+-   file creation
+-   ctl-c to kill the running environment
+
+but feel free to do something not on this list.
+
+Your code should pass all tests at this point. As usual, you can grade your submission with `make grade` and hand it in with `make handin`.
+
+This completes the lab. As usual, don't forget to run `make grade` and to write up your answers and a description of your challenge exercise solution. Before handing in, use `git status` and `git diff` to examine your changes and don't forget to `git add answers-lab5.txt`. When you're ready, commit your changes with `git commit -am 'my solutions to lab 5'`, then `make handin` to submit your solution.

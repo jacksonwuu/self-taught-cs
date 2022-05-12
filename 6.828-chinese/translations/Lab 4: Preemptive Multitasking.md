@@ -468,7 +468,7 @@ lapic_init 和 pic_init（来自于 init.c 里的 i386_init），我们已经为
 
 挑战！Doug McIlroy 的幂级数计算器是消息传递功能最令人印象深刻的例子之一，在[M. Douglas McIlroy, ``Squinting at Power Series,'' Software--Practice and Experience, 20(7) (July 1990), 661-683](https://swtch.com/~rsc/thread/squint.pdf)有描述。实现他的幂级数计算器，计算 sin(x+x^3)的幂级数。
 
-挑战！通过应用 Liedtke 论文中的一些技术，使 JOS 的 IPC 机制更加高效，[Improving IPC by Kernel Design](http://dl.acm.org/citation.cfm?id=168633)，或者其他你能想到的技巧。为此，你可以随意修改内核的系统调用 API，只要你的代码是向后兼容我们的评分脚本所期望的。
+挑战！通过应用 Liedtke 论文中的一些技术，使 JOS 的 IPC 机制更加高效，[Improving IPC by Kernel Design](http://dl.acm.org/citation.cfm?id=168633)，或者其他你能想到的技巧。为此，你可以随意修改内核的系统调用 API，只要你的代码是向后兼容我们的评分脚本的就行。
 
 这是部分 C 的结尾。确保你通过了所有的 make grade 测试，不要忘记在 answer-lab4.txt 中写下你的问题答案和你的挑战练习解决方案的描述。
 
