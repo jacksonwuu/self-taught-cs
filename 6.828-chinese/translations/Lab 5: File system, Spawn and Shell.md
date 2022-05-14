@@ -52,6 +52,26 @@ x86 处理器通过 EFLAGS 寄存器里的 IOPL 位来决定是否保护模式�
 
 练习 1：把`ENV_TYPE_FS`传入用户环境创建函数`env_create`，`i386_init`通过这个参数来区分是不是文件系统环境。修改`env.c`里的的`env_create`，以便给文件系统环境 I/O 权限，但是一定不要给其他环境这个权限。
 
+问题
+
+你是如何保证当一个环境随后被切换为另外一个环境时，I/O 权限是正确被保存和恢复的？为什么？
+
+注意，就像之前一样，GNUmakefile 文件设置了 QEMU 去使用 obj/kern/kernel.img 作为镜像，放到磁盘 0（在 DOS/Windows 里叫做“驱动 C”），然后使用一个新的文件 obj/fs/fs.img 作为镜像，放到磁盘 1（“驱动 D”）。在这个实验里，我们的文件系统应该只会接触磁盘 1；磁盘 0 只被用于启动内核。如果你以某种方式损坏任一磁盘映像，你可以将它们还原如初，“原始”版本只需要键入：
+
+```
+$ rm obj/kern/kernel.img obj/fs/fs.img
+$ make
+```
+
+或者：
+
+```
+$ make clean
+$ make
+```
+
+挑战！实现中断驱动的 IDE 磁盘访问，使用或不使用 DMA。你可以决定是否把设备驱动移到内核里，将它与文件系统一起放到用户空间里，或者甚至(如果您真的想了解微内核的精神)将它移到一个单独的环境中。
+
 ### 区块缓存
 
 在我们的文件系统里，我们会在处理器虚拟内存系统的帮助下，实现一个简单的“buffer cache”（真的只是一个区块缓存）。代码在`fs/bc.c`里。
@@ -66,7 +86,11 @@ x86 处理器通过 EFLAGS 寄存器里的 IOPL 位来决定是否保护模式�
 
 flush_block 函数应该把一个区块写入 disk。如果这个区块不在区块缓存里，那么 flush_block 不应该做任何事情。我们会使用 VM 硬件来追踪一个硬件在上次读取之后是否被修改过，以及上次写入磁盘后是否被修改过。为了查看一个区块是否需要写入，我们只要看`PTE_D`的“dirty”位是否设置了，通过 uvpt 项来查看这个。（PTE_D 位由处理器设置，以响应对该页的写操作；请参考 386 参考手册第 5 章的 5.2.4.3。）将该块写入磁盘后，`flush_block`应该使用`sys_page_map`清除`PTE_D`位。
 
+Use make grade to test your code. Your code should pass "check_bc", "check_super", and "check_bitmap".
+
 `fs/fs.c`里的`fs_init`函数是使用块缓存的一个主要例子。在初始化块缓存之后，它就简单地把指针存储在磁盘映射区域（在`super`结构体里）。在此之后，我们可以简单地从`super`结构体读取，好像它们就在内存里一样，而且我们的页错误处理程序也会把它们从磁盘里读出来。
+
+Challenge! The block cache has no eviction policy. Once a block gets faulted in to it, it never gets removed and will remain in memory forevermore. Add eviction to the buffer cache. Using the PTE_A "accessed" bits in the page tables, which the hardware sets on any access to a page, you can track approximate usage of disk blocks without the need to modify every place in the code that accesses the disk map region. Be careful with dirty blocks.
 
 ### 区块位图
 
@@ -80,7 +104,11 @@ flush_block 函数应该把一个区块写入 disk。如果这个区块不在区
 
 练习 4：实现`file_block_walk`和`file_get_block`，file_block_walk maps from a block offset within a file to the pointer for that block in the struct File or the indirect block，非常像我们在`pgdir_walk`里为页表所做的事情。`file_get_block`再进一步地映射到了特定的磁盘块上，如果有必要就申请一个新的。
 
+Use make grade to test your code. Your code should pass "file_open", "file_get_block", and "file_flush/file_truncated/file rewrite", and "testfile".
+
 文件系统由`file_block_walk`和`file_get_block`负责。For example, file_read and file_write are little more than the bookkeeping atop file_get_block necessary to copy bytes between scattered blocks and a sequential buffer.
+
+Challenge! The file system is likely to be corrupted if it gets interrupted in the middle of an operation (for example, by a crash or a reboot). Implement soft updates or journalling to make the file system crash-resilient and demonstrate some situation where the old file system would get corrupted, but yours doesn't.
 
 ### 文件系统接口
 
