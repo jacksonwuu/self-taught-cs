@@ -1,6 +1,6 @@
 ## 6.828
 
-### Lab
+### 实验
 
 -   [Lab 1: Booting a PC](./Lab%201:%20Booting%20a%20PC.md)
 -   [Lab 2: Memory Management](./Lab%202:%20Memory%20Management.md)
@@ -10,7 +10,7 @@
 -   [Lab 6: Network Driver](./Lab%206:%20Network%20Driver.md)
 -   [Lab 7: Final JOS project](./Lab%207:%20Final%20JOS%20project.md)
 
-### Homework
+### 作业
 
 -   [boot xv6](./Homework:%20boot%20xv6.md)
 -   [shell](./Homework:%20shell.md)
@@ -21,7 +21,7 @@
 -   [barrier]()
 -   [big files]()
 
-### My gains
+### 学习收获
 
 操作系统主要分为几个部分：
 
@@ -41,7 +41,7 @@
 -   进程锁机制
 -   DMA 机制
 
-### Reading material
+### 阅读材料
 
 -   xv6-book
 -   80386 Reference Manual
@@ -49,7 +49,7 @@
 -   https://pdos.csail.mit.edu/6.828/2018/reference.html
 -   Linux 内核设计与实现
 
-**如何学习 MIT6.828？**
+### 如何学习 MIT6.828？
 
 MIT 6.828 可以说是世界上最好的操作系统课程，非常建议每一个对技术有追求的朋友学习。
 
@@ -63,7 +63,7 @@ MIT 6.828 可以说是世界上最好的操作系统课程，非常建议每一�
 
 这个课程已经把许多晦涩的部分给我们实现了，我们只需要关注操作系统中最精华的那部分：中断与中断处理、内存管理、进程管理、文件系统、网络等模块的核心实现细节。所以不一定需要理解每一行代码。对于一些晦涩的代码，只要理解它做了什么事情即可。
 
-### Other things
+### 其他
 
 -   Assembly Language
 
