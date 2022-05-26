@@ -62,3 +62,11 @@ MIT 6.828 可以说是世界上最好的操作系统课程，非常建议每一�
 操作系统开发比其他软件都要复杂，首先不能使用 C 标准库来开发内核，因为这些库程序本身就是建立在内核之上的，你不但不能使用而且你还要自己写这些程序库；另外一个难度在于程序调试的难度，要通过 QEMU 这样的硬件模拟器以及 gdb 这样的调试器来做，同时还要能深刻理解程序运行原理；以及对于内核代码来说是没有内存保护机制的，所以要非常小心程序的编写，不然一个错误就会导致整个系统崩溃；最后一点是要非常注意内核里的同步和并发，尤其是为多核处理器开发操作系统时。鉴于操作系统的开发难度，我们一定会遇到一时解决不了的问题，放平心态，积极与学习就好了。
 
 这个课程已经把许多晦涩的部分给我们实现了，我们只需要关注操作系统中最精华的那部分：中断与中断处理、内存管理、进程管理、文件系统、网络等模块的核心实现细节。所以不一定需要理解每一行代码。对于一些晦涩的代码，只要理解它做了什么事情即可。
+
+### Other things
+
+-   Assembly Language
+
+As a programmer, I found that learning assembly language is pretty much helpful. Learning assembly make me grasp a deeper understanding of what high language code actually do, how registers works and how Operating System works.
+
+MIT 6.828 course strongly recommend a book about x86 assembly, [PC Assembly Language](https://pdos.csail.mit.edu/6.828/2018/readings/pcasm-book.pdf), I‘ve read through, it's a really a great book!
