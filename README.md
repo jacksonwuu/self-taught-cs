@@ -34,8 +34,6 @@ Documenting my self-learning experience.
 -   Course: [SU CS144 Introduction to Computer Network](https://cs144.github.io/)
 -   Book: [TCP/IP Illustrated](https://en.wikipedia.org/wiki/TCP/IP_Illustrated) by W. Richard Stevens
 
--   [Database System Concepts]()
-
 ### Resources
 
 -   [CS 自学指南](https://csdiy.wiki/)
