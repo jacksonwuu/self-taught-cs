@@ -40,7 +40,13 @@ Documenting my self-learning experience.
 
 -   Book: [Crafting Interpreters](http://craftinginterpreters.com)
 
-## Other Resources
+### Other
+
+-   Book:
+    -   [Linkers and Loaders](https://www.amazon.com/Linkers-Kaufmann-Software-Engineering-Programming/dp/1558604960) by John R. Levine
+    -   [程序员的自我修养: 链接、装载与库](https://book.douban.com/subject/3652388/) by 俞甲子，潘爱民，石凡
+
+## Resources
 
 -   [CS 自学指南](https://csdiy.wiki/)
 -   [自学计算机科学](https://github.com/izackwu/TeachYourselfCS-CN/blob/master/TeachYourselfCS-CN.md)
