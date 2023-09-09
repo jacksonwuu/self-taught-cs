@@ -6,7 +6,7 @@ Documenting my self-learning experience.
 
 -   [为什么要学习国外大学计算的课程？如何学习？](./guide.md)
 
-### Data structure and Alogorithm
+### Data structure and Algorithm
 
 -   Course: [MIT 6.006 Introduction to algorithms (2011 Fall)](https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-fall-2011/)
 -   Book: [Introduction to Algorithms](https://en.wikipedia.org/wiki/Introduction_to_Algorithms) by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein
